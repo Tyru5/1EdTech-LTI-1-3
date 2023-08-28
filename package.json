@@ -1,0 +1,26 @@
+{
+  "name": "1edtech-lti-1-3-ags",
+  "version": "1.0.0",
+  "description": "Node.js implementation for the LTI 1.3 Assignment Grading Services specification. Handles lineitem CRUD operations, and grade-passback.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tyru5/1EdTech-LTI-1-3.git"
+  },
+  "keywords": [
+    "1EdTech",
+    "LTI",
+    "LMS",
+    "Canvas",
+    "Schoology",
+    "Blackboard",
+    "edX",
+    "grade-passback",
+    "lineitem"
+  ],
+  "author": "Tyrus Malmström <tyrusm@hotmail.com>",
+  "license": "MIT"
+}
