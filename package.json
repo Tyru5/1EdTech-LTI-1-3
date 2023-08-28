@@ -33,7 +33,6 @@
   "devDependencies": {
     "@changesets/cli": "^2.26.2",
     "tsup": "^7.2.0",
-    "typescript": "^5.2.2",
-    "semantic-release": "^21.1.1"
+    "typescript": "^5.2.2"
   }
 }
