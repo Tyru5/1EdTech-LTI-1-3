@@ -1,4 +1,4 @@
-# 1EdTech-LTI-1-3
+# LTI 1.3 Assignment Grading Services (AGS)
 
 A library implementing the 1EdTechLTI 1.3 [Assignment Grading Services](https://www.imsglobal.org/spec/lti-ags/v2p0/) (AGS) Specification
 
