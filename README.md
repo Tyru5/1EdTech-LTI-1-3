@@ -22,7 +22,7 @@ A library implementing the 1EdTechLTI 1.3 [Assignment Grading Services](https://
 
 ## Installation
 ```javascript
- npm install 1edtech-lti-1-3-ags
+ npm install lti-1p3-ags
 ```
 
 ## Supported LTI Version
