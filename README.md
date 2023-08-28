@@ -30,18 +30,18 @@ A library implementing the 1EdTechLTI 1.3 [Assignment Grading Services](https://
 
 ## General Overview
 ![Assignment and Grade Services Overview](assets/GradebookServicesOverview.png)
-*Assignment and Grade Services Overview -- taken from the offical 1EdTech AGS Specification*
+*Assignment and Grade Services Overview -- taken from the official 1EdTech AGS Specification*
 
 ## Usage
-The LTI 1.3 Core Specification won't be covered here, however, it would good to familiarize yourself with the [specification](https://www.imsglobal.org/spec/lti/v1p3)
+The LTI 1.3 Core Specification won't be covered here, however, it would be good to familiarize yourself with the [specification](https://www.imsglobal.org/spec/lti/v1p3)
 before utilizing this package. It would give you a core understanding behind the design choices and implementation differences from LTI 1.1.
 
-The same is true for the LTI Advantage Assignment Grading Services (AGS) specification. I highly advise and recommend becomming
-familiar with the new [specficiation](https://www.imsglobal.org/spec/lti-ags/v2p0/). An official migration guide is provided by 1EdTech, which couuld be found [here](https://www.imsglobal.org/spec/lti/v1p3/migr#migrating-from-basic-outcome-to-assignment-and-grade-services-2-0).
-It briefly discusses how to migration from the `Basic Outcome Service` to the new `Assignment Grading Services 2.0` (which is a part of the core LTI Advantage Services).
+The same is true for the LTI Advantage Assignment Grading Services (AGS) specification. I highly advise and recommend becoming
+familiar with the new [specificiation](https://www.imsglobal.org/spec/lti-ags/v2p0/). An official migration guide is provided by 1EdTech, which could be found [here](https://www.imsglobal.org/spec/lti/v1p3/migr#migrating-from-basic-outcome-to-assignment-and-grade-services-2-0).
+It briefly discusses the migration from the `Basic Outcome Service` to the new `Assignment Grading Services 2.0` (which is a part of the core LTI Advantage Services).
 
 An important thing to note -- this library doesn't help you manage anything in relation to creating your public/private RSA keys. You will have to handle that on your own.
-More information could be found in the offical [1EdTech Security Framework](https://www.imsglobal.org/spec/security/v1p0/).
+More information could be found in the official [1EdTech Security Framework](https://www.imsglobal.org/spec/security/v1p0/).
 
 ```javascript
 import AGS from 'lti-1p3-ags';
