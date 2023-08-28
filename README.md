@@ -44,7 +44,7 @@ An important thing to note -- this library doesn't help you manage anything in r
 More information could be found in the offical [1EdTech Security Framework](https://www.imsglobal.org/spec/security/v1p0/).
 
 ```javascript
-import AGS from '1edtech-lti-1-3-ags';
+import AGS from 'lti-1p3-ags';
 
 const ags = new AGS({
   issuer,
