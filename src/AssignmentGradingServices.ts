@@ -8,7 +8,13 @@ import qs from 'qs';
 import jwt, { Algorithm, SignOptions } from 'jsonwebtoken';
 
 // Custom Types:
-import { LtiAdvantageServicesAuthRequest } from './types/LtiAdvantageServiceAuthRequest';
+import { LtiAdvantageServicesAuthRequest } from './interfaces/LtiAdvantageServiceAuthRequest';
+import { LtiAdvantageAccessToken } from './interfaces/LtiAdvantageAccessToken';
+import { Payload } from './interfaces/Payload';
+import { StudentAttempt } from './interfaces/StudentAttempt';
+
+// Custom Error:
+import { ProjectError } from './errors';
 
 import {
   LTI13_ADVANTAGE_SERVICES_AUTH,
@@ -24,7 +30,7 @@ export default class AssignmentGradingServices {
   /**
    *
    */
-  public accessToken: string = '';
+  public accessToken: string | null = '';
   /**
    *
    */
@@ -62,21 +68,14 @@ export default class AssignmentGradingServices {
   /**
    * 
    */
-  public init() {
-    // Ignoring errors for now... will create custom types
-    const {
-      // @ts-ignore
-      token_type: tokenType,
-      // @ts-ignore
-      access_token: accessToken,
-    } = this.generateLTIAdvantageServicesAccessToken();
-    this.tokenType = tokenType;
-    this.accessToken = accessToken;
-
+  public async init() {
+    const data: LtiAdvantageAccessToken = await this.generateLTIAdvantageServicesAccessToken();
+    this.tokenType = data.tokenType;
+    this.accessToken = data.accessToken;
     if (this.DEBUG) {
       console.log({
-        tokenType,
-        accessToken,
+        tokenType: this.tokenType,
+        accessToken: this.accessToken,
       });
     }
   }
@@ -84,7 +83,7 @@ export default class AssignmentGradingServices {
   /**
    *
    */
-  private async generateLTIAdvantageServicesAccessToken() {
+  private async generateLTIAdvantageServicesAccessToken(): Promise<LtiAdvantageAccessToken> {
     try {
 
       const {
@@ -105,32 +104,42 @@ export default class AssignmentGradingServices {
         generatedAccessToken = await axios(options);
       } catch (error) {
         console.log('error getting access token...');
-        console.log(error.message);
+        if (error instanceof Error) {
+          console.log(error.message);
+        }
       }
 
       if (!generatedAccessToken) {
-        // TODO TAM implement: Error returning logic here...
-        // TODO TAM create: New custom Error type
-        return {
+        const accessTokenData: LtiAdvantageAccessToken = {
+          accessToken: null,
+          tokenType: 'Bearer',
           status: 400,
           msg: 'Failed to get Access token for LTI 1.3 Assignment Grading Service(s).',
           data: null,
         };
+        return accessTokenData;
       }
 
-      // TODO TAM clean...
-      // const {
-      //   token_type: tokenType,
-      //   access_token: accessTokenValue,
-      //   expires_in: expires,
-      //   scope,
-      // } = generatedAccessToken.data;
+      const {
+        token_type: tokenType,
+        access_token: accessTokenValue,
+        expires_in: expires,
+        scope,
+      } = generatedAccessToken.data;
+      const obtainAccessTokenData: LtiAdvantageAccessToken = {
+        tokenType,
+        accessToken: accessTokenValue,
+        expiresIn: expires,
+        scope,
+      }
 
-      // TODO TAM implement: Create new type
-      return generatedAccessToken.data;
+      return obtainAccessTokenData;
     } catch (error) {
-      // TODO TAM implement: create custom project error thrower...
-      throw(error);
+      throw new ProjectError({
+        name: 'GET_LTI_ADVANTAGE_SERVICES_ACCESS_TOKEN',
+        message: 'Error::getLTIAdvantageServicesAccessToken LTI 1.3...',
+        cause: error,
+      });
     }
   }
 
@@ -168,8 +177,10 @@ export default class AssignmentGradingServices {
           signOptions
         );
       } catch (error) {
-        // TODO TAM implement: create custom project error thrower...
-        throw('error signing JWT claim...');
+        console.log('error signing JWT claim...');
+        if (error instanceof Error) {
+          console.log(error.message);
+        }
       }
   
       return {
@@ -182,42 +193,35 @@ export default class AssignmentGradingServices {
         }
       }; 
     } catch (error) {
-      // TODO TAM implement: create custom project error thrower...
-      throw(error);
-      // throw(
-      //   'Failed to generate LTI Advantage auth request...',
-      //   400,
-      //   {
-      //     returnFullError: true,
-      //     error,
-      //     clientId,
-      //   }
-      // );
+      throw new ProjectError({
+        name: 'FAILED_TO_GENERATE_LTI_ADVANTAGE_AUTH_REQUEST',
+        message: 'Failed to generate LTI Advantage auth request...',
+        cause: error,
+      });
     }
   }
 
   /**
-   * TODO TAM clean and fix.
+   *
    */
-  public constructPayloadAndScoreUrl({
+  private constructPayloadAndScoreUrl({
     studentAttempt,
     studentLti1p3UserId,
-  } = {}): Object {
+  }: {
+    studentAttempt: StudentAttempt;
+    studentLti1p3UserId: string;
+  }): Payload {
+
+    // Grab all necessary values from student attempt:
     const {
-      data: {
-        points_earned: pointsEarned,
-        points_available: pointsAvailable,
-        complete,
-      },
-      info: {
-        grade_outcome_url: gradeOutcomeUrl,
-      }
+      gradeOutcomeUrl,
+      pointsAvailable,
+      pointsEarned,
+      complete,
     } = studentAttempt;
-  
     const body = {
       scoreGiven: pointsEarned,
       scoreMaximum: pointsAvailable,
-      // TODO TAM: how do we want to handle this and the one below it? Bigger discussion?
       activityProgress: complete ? 'Completed' : 'InProgress',
       gradingProgress: 'FullyGraded',
       timestamp: new Date().toISOString(),
@@ -226,15 +230,190 @@ export default class AssignmentGradingServices {
   
     let scoreUrl = `${gradeOutcomeUrl}/scores`;
     if (gradeOutcomeUrl.indexOf('?') !== -1) {
-      const url   = gradeOutcomeUrl.split('?')[0];
-      const query = gradeOutcomeUrl.split('?')[1];
+      const [
+        url,
+        query
+      ] = [
+        gradeOutcomeUrl.split('?')[0],
+        gradeOutcomeUrl.split('?')[1]
+      ];
       scoreUrl = `${url}/scores?${query}`;
     }
   
     return {
-      body: JSON.stringify(body),
+      data: JSON.stringify(body),
       scoreUrl,
     };
+  }
+
+  /**
+   * 
+   */
+  public async postGrades({
+    resourceLinkId,
+    studentAttempt,
+    studentLti1p3UserId,
+  }: {
+    resourceLinkId: string;
+    studentAttempt: StudentAttempt;
+    studentLti1p3UserId: string;
+  }) {
+    try {
+      /**
+       * * We first have to see if we can submit the score, with the given endpoint recieved from the Lti message launch.
+       * * If that doesn't work, it means that the lineitem doesn't exist so we have to:
+       * *  - Create the lineitem
+       * *  - Then submit the grade.
+       */
+
+      const payload: Payload = this.constructPayloadAndScoreUrl({
+        studentAttempt,
+        studentLti1p3UserId,
+      });
+
+      try {
+        const {
+          status
+        } = await this.submitScoreToLMS({
+          scoreUrl: payload.scoreUrl,
+          data: payload.data,
+        });
+
+        return {
+          status,
+          updatedEndpoint: null,
+        };
+      } catch (initialGradeResponseError) {
+        if (initialGradeResponseError instanceof Error) {
+          console.log('initialGradeResponseError::', initialGradeResponseError.message)
+        }
+        try {
+          // * lineitem doesn't exist, lets create it!;
+          const lineitemUrl = await createLineitem({
+            lineitemsUrl: scoreUrl,
+            tokenType,
+            accessToken,
+            scoreMaximum: pointsAvailable,
+            label: modelName,
+            tag: 'grade',
+            resourceId: String(modelId),
+            resourceLinkId,
+          });
+
+          await updateCustomResourceLinkInfoGradeOutcomeUrl({
+            scoreUrl,
+            lineitemUrl,
+            modelId,
+            playPositTeacherId,
+            resourceLinkId,
+          });
+          
+          try {
+            const {
+              status,
+            } = await submitScoreToLMS({
+              scoreUrl: `${lineitemUrl}/scores`,
+              tokenType,
+              accessToken,
+              data: body,
+            });
+            return {
+              status,
+              updatedEndpoint: `${lineitemUrl}/scores`,
+            };
+          } catch (lineItemGradeResponseError) {
+            console.log('lineItemGradeResponseError::', lineItemGradeResponseError.message)
+            throwLti13DashError(
+              'Failed to send score to lineItemUrl...',
+              400,
+              {
+                error: lineItemGradeResponseError,
+                data: {
+                  lineitemUrl,
+                },
+              }
+            );
+          }
+        } catch (lineItemCreationError) {
+          console.log('lineItemCreationError::', lineItemCreationError.message);
+          try {
+            // * Welp! The lineitem probably already exists and that's why we couldn't create it... lets use the already existing one!.
+            const {
+              data: existingLineitem,
+            } = await fetchExisitingLineitem({
+              lineitemsUrl: scoreUrl,
+              tokenType,
+              accessToken,
+              params: {
+                resource_id: String(modelId),
+              },
+            });
+            const finalExistingLineitem = Array.isArray(existingLineitem)
+              ? existingLineitem.find(lt => lt.resourceId === String(modelId))
+              : existingLineitem;
+
+            try {
+              const {
+                status
+              } = await submitScoreToLMS({
+                scoreUrl: `${finalExistingLineitem.id}/scores`,
+                tokenType,
+                accessToken,
+                data: body,
+              });
+              return {
+                status,
+                updatedEndpoint: `${finalExistingLineitem.id}/scores`,
+              };
+            } catch (gradePassbackAfterFindingAlreadyExistingLineitemError) { // at this point, I'm 'just memeing....
+              console.log(gradePassbackAfterFindingAlreadyExistingLineitemError.message);
+              return throwLti13DashError(
+                'Failed to submit grade after finding already created lineitem',
+                400,
+                {
+                  error: gradePassbackAfterFindingAlreadyExistingLineitemError.message,
+                  data: {
+                    lineitemCreationOptions,
+                  },
+                }
+              );
+            }
+          } catch (lineItemExistenceError) {
+            return throwLti13DashError(
+              'Failed to fetch all lineitems for given tool...',
+              400,
+              {
+                error: lineItemExistenceError.message,
+              }
+            );
+          }
+        }
+      }
+    } catch (error) {
+      console.log('error from `sendScore()`');
+      if (error instanceof Error) {
+        console.log(error.message);
+      }
+    }
+  }
+
+  /**
+   * 
+   * @param param0 
+   */
+  private async submitScoreToLMS({ scoreUrl, data }: Payload) {
+    const gradeOutcomeOptions = {
+      method: 'POST',
+      url: scoreUrl,
+      headers: {
+        'Content-Type': LTI13_ADVANTAGE_SERVICES_AUTH.ScoresContentType,
+        Authorization: `${this.tokenType} ${this.accessToken}`,
+      },
+      data,
+    };
+    if (this.DEBUG) console.log({ gradeOutcomeOptions });
+
+    return await axios(gradeOutcomeOptions);
   }
 
 }

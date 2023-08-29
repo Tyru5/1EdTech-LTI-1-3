@@ -5,4 +5,5 @@ export const LTI13_SCOPES = Object.freeze({
 export const LTI13_ADVANTAGE_SERVICES_AUTH = Object.freeze({
   ClientCredentials: 'client_credentials',
   ClientAssertionType: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+  ScoresContentType: 'application/vnd.ims.lis.v1.score+json',
 });
