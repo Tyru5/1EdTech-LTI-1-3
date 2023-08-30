@@ -80,7 +80,7 @@ try {
 
   // If you pass no params, it will fetch all lineitems:
   const lineitems = await ags.fetchAllLineitems({
-    lineitemsUrl: 'lineitems-urls-endpoint',
+    lineitemsUrl: 'lineitems-url-endpoint',
   });
   console.log(lineitems);
   /**
