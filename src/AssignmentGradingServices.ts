@@ -17,6 +17,7 @@ import { StudentAttempt } from './interfaces/StudentAttempt';
 import { ProjectError } from './errors';
 
 import {
+  LTI13_ADVANTAGE_GRADING_SERVICES,
   LTI13_ADVANTAGE_SERVICES_AUTH,
   LTI13_SCOPES,
 } from './utils/constants';
@@ -79,6 +80,267 @@ export default class AssignmentGradingServices {
       });
     }
   }
+
+  /**
+   * POST /scores back to lineitem that resides in LMS.
+   * If one doesn't exist for some reason, try to create one and POST again.
+   */
+  public async postGrades({
+    resourceLinkId,
+    studentAttempt,
+    studentLti1p3UserId,
+  }: {
+    resourceLinkId: string;
+    studentAttempt: StudentAttempt;
+    studentLti1p3UserId: string;
+  }) {
+    try {
+      /**
+       * * We first have to see if we can submit the score, with the given endpoint recieved from the Lti message launch.
+       * * If that doesn't work, it means that the lineitem doesn't exist so we have to:
+       * *  - Create the lineitem
+       * *  - Then submit the grade.
+       */
+
+      const payload: Payload = this.constructPayloadAndScoreUrl({
+        studentAttempt,
+        studentLti1p3UserId,
+      });
+
+      try {
+        const {
+          status
+        } = await this.submitScoreToLMS({
+          scoreUrl: payload.scoreUrl,
+          data: payload.data,
+        });
+
+        return {
+          status,
+          updatedEndpoint: null,
+        };
+      } catch (initialGradeResponseError) {
+        if (initialGradeResponseError instanceof Error) {
+          console.log('initialGradeResponseError::', initialGradeResponseError.message)
+        }
+        try {
+          // * lineitem doesn't exist, lets create it!;
+          const lineitemUrl = await this.createLineitem({
+            lineitemsUrl: payload.scoreUrl,
+            scoreMaximum: studentAttempt.pointsAvailable,
+            label: studentAttempt?.modelInfo?.modelName,
+            tag: 'grade',
+            resourceId: String(studentAttempt?.modelInfo?.modelId),
+            resourceLinkId,
+          });
+          
+          // *Try to POST /scores back now!
+          try {
+            const {
+              status,
+            } = await this.submitScoreToLMS({
+              scoreUrl: `${lineitemUrl}/scores`,
+              data: payload.data,
+            });
+            return {
+              status,
+              updatedEndpoint: `${lineitemUrl}/scores`,
+            };
+          } catch (lineItemGradeResponseError) {
+            if (lineItemGradeResponseError instanceof Error) {
+              console.log('lineItemGradeResponseError::', lineItemGradeResponseError.message)
+            }
+            throw new ProjectError({
+              name: 'FAILED_GRADING_CREATED_LINEITEM',
+              message: `Error trying to send scores back to newly created lineitem with lineitem url: ${lineitemUrl}/scores`,
+              cause: lineItemGradeResponseError,
+            });
+          }
+        } catch (lineItemCreationError) {
+          if (lineItemCreationError instanceof Error) {
+            console.log('lineItemCreationError::', lineItemCreationError.message);
+          }
+          try {
+            // * Welp! The lineitem probably already exists and that's why we couldn't create it... lets use the already existing one!.
+            const {
+              data: existingLineitem,
+            } = await this.fetchLineitem({
+              lineitemsUrl: payload.scoreUrl,
+              lineItemId: studentAttempt?.modelInfo?.modelName,
+              params: {
+                resource_id: String(studentAttempt?.modelInfo?.modelId),
+              },
+            });
+
+            try {
+              const {
+                status
+              } = await this.submitScoreToLMS({
+                scoreUrl: `${existingLineitem.id}/scores`,
+                data: payload.data,
+              });
+              return {
+                status,
+                updatedEndpoint: `${existingLineitem.id}/scores`,
+              };
+            } catch (gradePassbackAfterFindingAlreadyExistingLineitemError) { // at this point, I'm 'just memeing....
+              if (gradePassbackAfterFindingAlreadyExistingLineitemError instanceof Error) {
+                console.log(gradePassbackAfterFindingAlreadyExistingLineitemError.message);
+              }
+              throw new ProjectError({
+                name: 'FAILED_GRADING_FETCHED_LINEITEM',
+                message: 'Failed to submit grade after finding already created lineitem',
+                cause: gradePassbackAfterFindingAlreadyExistingLineitemError,
+              });
+            }
+          } catch (lineItemExistenceError) {
+            throw new ProjectError({
+              name: 'LINEITEM_DOES_NOT_EXIST',
+              message: `lineitem with url id: ${studentAttempt.modelInfo.modelId}`,
+              cause: lineItemExistenceError,
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.log('error from `sendScore()`');
+      if (error instanceof Error) {
+        console.log(error.message);
+      }
+      throw new ProjectError({
+        name: 'FAILED_POSTING_SCORES',
+        message: 'Error in posting any and all scores back to the LMS...',
+        cause: error,
+      });
+    }
+  }
+
+  /**
+   * 
+   * @param {
+   *   params...
+   * }
+   * 
+   * @returns `lineitem` URL.
+   */
+  public async createLineitem({
+    lineitemsUrl,
+    scoreMaximum,
+    label,
+    tag,
+    resourceId,
+    resourceLinkId,
+  }: {
+    lineitemsUrl: string;
+    scoreMaximum: number;
+    label: string;
+    tag: string;
+    resourceId: string;
+    resourceLinkId: string;
+  }): Promise<string> {
+    try {
+      const lineitemCreationOptions = {
+        method: 'POST',
+        url: lineitemsUrl.replace('/scores', ''), // TODO TAM: clean....
+        headers: {
+          'Content-Type': LTI13_ADVANTAGE_GRADING_SERVICES.LineitemContentType,
+          Authorization: `${this.tokenType} ${this.accessToken}`,
+        },
+        data: JSON.stringify({
+          startDateTime: new Date().toISOString(),
+          endDateTime: new Date().toISOString(),
+          scoreMaximum,
+          label,
+          tag,
+          resourceId,
+          resourceLinkId,
+        }),
+      };
+      const {
+        data: {
+          id: lineitemUrl
+        }
+      } = await axios(lineitemCreationOptions);
+    
+      return lineitemUrl;
+    } catch (error) {
+      throw new ProjectError({
+        name: 'FAILED_CREATING_LINEITEM',
+        message: `Error creating linetem with given lineitem url: ${lineitemsUrl}`,
+        cause: error,
+      });
+    }
+  }
+
+  /**
+   * 
+   * @param {
+   *   params...
+   * }
+   */
+  public async fetchAllLineitems({
+    lineitemsUrl,
+    params,
+  }: {
+    lineitemsUrl: string;
+    params: any;
+  }) {
+    try {
+      return await axios.get(
+        lineitemsUrl.replace('/scores', ''),
+        {
+          headers: {
+            accept: 'application/json',
+            Authorization: `${this.tokenType} ${this.accessToken}`,
+          },
+          params,
+        },
+      );
+    } catch (error) {
+      throw new ProjectError({
+        name: 'FAILED_FETCHING_ALL_LINEITEMS',
+        message: `Error fetching all lineitems with the lineitems url: ${lineitemsUrl}`,
+        cause: error,
+      });
+    }
+  }
+
+  /**
+   * 
+   * @param {
+  *   params...
+  * }
+  */
+ public async fetchLineitem({
+   lineitemsUrl,
+   lineItemId,
+   params,
+ }: {
+   lineitemsUrl: string;
+   lineItemId: string;
+   params: any;
+ }) {
+   try {
+     return await axios.get(
+       `${lineitemsUrl.replace('/scores', '')}/${lineItemId}`,
+       {
+         headers: {
+           accept: 'application/json',
+           Authorization: `${this.tokenType} ${this.accessToken}`,
+         },
+         params,
+       },
+     );
+   } catch (error) {
+     throw new ProjectError({
+       name: 'FAILED_FETCHING_ALL_LINEITEMS',
+       message: `Error fetching all lineitems with the lineitems url: ${lineitemsUrl}`,
+       cause: error,
+     });
+   }
+ }
+
+
 
   /**
    *
@@ -248,157 +510,6 @@ export default class AssignmentGradingServices {
 
   /**
    * 
-   */
-  public async postGrades({
-    resourceLinkId,
-    studentAttempt,
-    studentLti1p3UserId,
-  }: {
-    resourceLinkId: string;
-    studentAttempt: StudentAttempt;
-    studentLti1p3UserId: string;
-  }) {
-    try {
-      /**
-       * * We first have to see if we can submit the score, with the given endpoint recieved from the Lti message launch.
-       * * If that doesn't work, it means that the lineitem doesn't exist so we have to:
-       * *  - Create the lineitem
-       * *  - Then submit the grade.
-       */
-
-      const payload: Payload = this.constructPayloadAndScoreUrl({
-        studentAttempt,
-        studentLti1p3UserId,
-      });
-
-      try {
-        const {
-          status
-        } = await this.submitScoreToLMS({
-          scoreUrl: payload.scoreUrl,
-          data: payload.data,
-        });
-
-        return {
-          status,
-          updatedEndpoint: null,
-        };
-      } catch (initialGradeResponseError) {
-        if (initialGradeResponseError instanceof Error) {
-          console.log('initialGradeResponseError::', initialGradeResponseError.message)
-        }
-        try {
-          // * lineitem doesn't exist, lets create it!;
-          const lineitemUrl = await createLineitem({
-            lineitemsUrl: scoreUrl,
-            tokenType,
-            accessToken,
-            scoreMaximum: pointsAvailable,
-            label: modelName,
-            tag: 'grade',
-            resourceId: String(modelId),
-            resourceLinkId,
-          });
-
-          await updateCustomResourceLinkInfoGradeOutcomeUrl({
-            scoreUrl,
-            lineitemUrl,
-            modelId,
-            playPositTeacherId,
-            resourceLinkId,
-          });
-          
-          try {
-            const {
-              status,
-            } = await submitScoreToLMS({
-              scoreUrl: `${lineitemUrl}/scores`,
-              tokenType,
-              accessToken,
-              data: body,
-            });
-            return {
-              status,
-              updatedEndpoint: `${lineitemUrl}/scores`,
-            };
-          } catch (lineItemGradeResponseError) {
-            console.log('lineItemGradeResponseError::', lineItemGradeResponseError.message)
-            throwLti13DashError(
-              'Failed to send score to lineItemUrl...',
-              400,
-              {
-                error: lineItemGradeResponseError,
-                data: {
-                  lineitemUrl,
-                },
-              }
-            );
-          }
-        } catch (lineItemCreationError) {
-          console.log('lineItemCreationError::', lineItemCreationError.message);
-          try {
-            // * Welp! The lineitem probably already exists and that's why we couldn't create it... lets use the already existing one!.
-            const {
-              data: existingLineitem,
-            } = await fetchExisitingLineitem({
-              lineitemsUrl: scoreUrl,
-              tokenType,
-              accessToken,
-              params: {
-                resource_id: String(modelId),
-              },
-            });
-            const finalExistingLineitem = Array.isArray(existingLineitem)
-              ? existingLineitem.find(lt => lt.resourceId === String(modelId))
-              : existingLineitem;
-
-            try {
-              const {
-                status
-              } = await submitScoreToLMS({
-                scoreUrl: `${finalExistingLineitem.id}/scores`,
-                tokenType,
-                accessToken,
-                data: body,
-              });
-              return {
-                status,
-                updatedEndpoint: `${finalExistingLineitem.id}/scores`,
-              };
-            } catch (gradePassbackAfterFindingAlreadyExistingLineitemError) { // at this point, I'm 'just memeing....
-              console.log(gradePassbackAfterFindingAlreadyExistingLineitemError.message);
-              return throwLti13DashError(
-                'Failed to submit grade after finding already created lineitem',
-                400,
-                {
-                  error: gradePassbackAfterFindingAlreadyExistingLineitemError.message,
-                  data: {
-                    lineitemCreationOptions,
-                  },
-                }
-              );
-            }
-          } catch (lineItemExistenceError) {
-            return throwLti13DashError(
-              'Failed to fetch all lineitems for given tool...',
-              400,
-              {
-                error: lineItemExistenceError.message,
-              }
-            );
-          }
-        }
-      }
-    } catch (error) {
-      console.log('error from `sendScore()`');
-      if (error instanceof Error) {
-        console.log(error.message);
-      }
-    }
-  }
-
-  /**
-   * 
    * @param param0 
    */
   private async submitScoreToLMS({ scoreUrl, data }: Payload) {
@@ -406,7 +517,7 @@ export default class AssignmentGradingServices {
       method: 'POST',
       url: scoreUrl,
       headers: {
-        'Content-Type': LTI13_ADVANTAGE_SERVICES_AUTH.ScoresContentType,
+        'Content-Type': LTI13_ADVANTAGE_GRADING_SERVICES.ScoresContentType,
         Authorization: `${this.tokenType} ${this.accessToken}`,
       },
       data,
