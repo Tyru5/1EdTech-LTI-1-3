@@ -56,27 +56,21 @@ const ags = new AGS({
 
 // So once the Assignment Grading Services (AGS) has been initialized and instantiated, it can now be used for `lineitem` CRUD operations, and grade-passback.
 // For instance,  you can do something like this:
-let createdLineitem = null;
-try {
-  createdLineitem = await ags.createLineitem({
-    lineitemsUrl,
-    scoreMaximum,
-    label,
-    tag,
-    resourceId,
-    resourceLinkId,
-  });
-} catch (error) {
-  throw error(`Error in creating lineitem`, error); 
-}
+createdLineitem = await ags.createLineitem({
+  lineitemsUrl,
+  scoreMaximum,
+  label,
+  tag,
+  resourceId,
+  resourceLinkId,
+});
 /**
  * This will return an object, with the necessary properties from the newly created lineitem. This will include the
  * lineitem `id`, and the assocaited metadata for the lineitem.
  * 
  * The `id` property is the url that will be used to later update, delete, post new socres, or getting the current results associated with that lineitem.
  */
-
-// createdLineitem will have these properties:
+/* `createdLineitem`` will have these properties:
 {
   "id": "string",
   "startDateTime": "2023-08-28T02:37:32.679Z",
@@ -87,6 +81,8 @@ try {
   "resourceId": "string",
   "resourceLinkId": "string"
 }
+*/
+
 .
 .
 .
