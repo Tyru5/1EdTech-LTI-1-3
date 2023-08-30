@@ -31,6 +31,14 @@ pnpm install lti-1p3-ags
 ![Assignment and Grade Services Overview](assets/GradebookServicesOverview.png)
 *Assignment and Grade Services Overview -- taken from the official 1EdTech AGS Specification*
 
+## Supported Methods
+- postScore();
+- createLineitem();
+- fetchAllLineitems();
+- fetchLineitem();
+
+Other CRUD operations currently in progress.
+
 ## Usage
 The LTI 1.3 Core Specification won't be covered here, however, it would be good to familiarize yourself with the [specification](https://www.imsglobal.org/spec/lti/v1p3)
 before utilizing this package. It would give you a core understanding behind the design choices and implementation differences from LTI 1.1.
@@ -43,93 +51,81 @@ An important thing to note -- this library doesn't help you manage anything in r
 More information could be found in the official [1EdTech Security Framework](https://www.imsglobal.org/spec/security/v1p0/).
 
 ```javascript
-import AGS from 'lti-1p3-ags';
-
-const ags = new AGS({
-  issuer,
-  clientId,
-  deploymentId,
-  authServer <-- OIDC URL
-  rsaPrivateKey,
-});
-
-// So once the Assignment Grading Services (AGS) has been initialized and instantiated, it can now be used for `lineitem` CRUD operations, and grade-passback.
-// For instance,  you can do something like this:
-createdLineitem = await ags.createLineitem({
-  lineitemsUrl,
-  scoreMaximum,
-  label,
-  tag,
-  resourceId,
-  resourceLinkId,
-});
 /**
- * This will return an object, with the necessary properties from the newly created lineitem. This will include the
- * lineitem `id`, and the assocaited metadata for the lineitem.
- * 
- * The `id` property is the url that will be used to later update, delete, post new socres, or getting the current results associated with that lineitem.
+ * Testing for the AGS npm package module.
  */
-/* `createdLineitem`` will have these properties:
-{
-  "id": "string",
-  "startDateTime": "2023-08-28T02:37:32.679Z",
-  "endDateTime": "2023-08-28T02:37:32.679Z",
-  "scoreMaximum": 0,
-  "label": "string",
-  "tag": "string",
-  "resourceId": "string",
-  "resourceLinkId": "string"
-}
-*/
+import AGS from 'lti-1p3-ags';
+import fs from 'fs';
 
-.
-.
-.
+try {
 
-// Posting back grade(s) to a specific lineitem that resides within the LMS:
-const gradePassbackResult = await ags.postGrades({
-  resourceLinkId,
-  studentAttempt,
-  studentLti1p3UserId,
-});
+  const ags = new AGS(
+    issuer,
+    clientId,
+    deploymentId,
+    oAuth2AccessEndpoint,
+    keyId,
+    fs.readFileSync('path/to/private-key.pem || string', 'utf-8'),
+  );
 
-const {
-  status: gradePostResponseStatus,
-  updatedScoresUrlEndpoint, // passed back just in case you want to do anything with it.
-} = gradePassbackResult;
+  /**
+   * Important! Need to invoke the `init()` method.
+   */
+  await ags.init();
 
-if (
-  gradePostResponseStatus === 200
-  || gradePostResponseStatus === 201
-) {
-  // do something!
-}
+  // From here, you can perform CRUD operatinos on lineitem(s), and review the Access Token that was generated:
+  console.log(ags.accessToken);
 
-// Another method for POSTing scores to the LMS:
-// *This just requires you know the score url, and have already created the data payload object which has this structure:
+  // If you pass no params, it will fetch all lineitems:
+  const lineitems = await ags.fetchAllLineitems({
+    lineitemsUrl: 'lineitems-urls-endpoint',
+  });
+  console.log(lineitems);
+  /**
+   * [
+      {
+        id: 'https://lorem ipsum',
+        scoreMaximum: 2,
+        label: 'user profile - enable captions',
+        resourceLinkId: 'resource-link-id'
+      },
+      {
+        id: 'https://lorem ipsum',
+        scoreMaximum: 40,
+        label: 'Taylor Swift - All Of The Girls You Loved Before (Audio)',
+        resourceLinkId: 'resource-link-id'
+      },
+      {
+        id: 'https://lorem ipsum',
+        scoreMaximum: 40,
+        label: 'Moving | Official Trailer | Hulu',
+        resourceLinkId: 'resource-link-id'
+      }
+    ]
+  */
 
-/*
-{
-  scoreGiven: <user's calculated score>,
-  scoreMaximum: <maximum score user could achieve>,
-  activityProgress: 'Completed',
-  gradingProgress: 'FullyGraded',
-  timestamp: new Date().toISOString(),
-  userId: <user's unique id>,
-}
-*/
-const {
-  status,
-} = await ags.submitScoreToLMS({
-  scoreUrl,
-  data,
-});
+  // If you pass `params`, it will fetch the lineitems based on off the params passed:
+   const params = {
+    resource_link_id: 'resource-link-id',
+  };
+  const lineitem = await ags.fetchAllLineitems({
+    lineitemsUrl: 'lineitem-url-endpoint',
+    params,
+  });
+  console.log(lineitem);
+  /**
+   * [
+      {
+        id: 'lorem ipsum',
+        scoreMaximum: 2,
+        label: 'user profile - enable captions',
+        resourceLinkId: 'resource-link-id'
+      }
+    ]
+  */
 
-if (
-  status === 200
-  || status === 201
-) {
-  // do something!
+} catch (error) {
+  console.log(error);  
 }
 ```
 

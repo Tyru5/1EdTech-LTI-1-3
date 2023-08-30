@@ -6,6 +6,9 @@
 import axios from 'axios';
 import qs from 'qs';
 import jwt, { Algorithm, SignOptions } from 'jsonwebtoken';
+import moment from 'moment';
+
+import lessThanOneHourAgo from './utils/lessThanOneHourAgo';
 
 // Custom Types:
 import { LtiAdvantageServicesAuthRequest } from './interfaces/LtiAdvantageServiceAuthRequest';
@@ -31,17 +34,25 @@ export default class AssignmentGradingServices {
   /**
    * oAuth2 Access Token needed for services calls.
    */
-  public accessToken: string = '';
+  private _accessToken: string = '';
+  public get accessToken(): string {
+    return this._accessToken;
+  }
   /**
    * Access Token Authorization type.
    */
-  public tokenType: string = 'Bearer';
+  private _tokenType: string = 'Bearer';
+  public get tokenType(): string {
+    return this._tokenType;
+  }
 
   /**
-   * TODO TAM clean: Allow user to set whatever value they want for this.
-   * Primary key to map the rsa public/private key to.
+   * Date for when the Access Token was created in UTC.
    */
-  private keyId: string = '1';
+  private _accessTokenCreatedDate: any;
+  public get accessTokenCreatedDate(): any {
+    return this._accessTokenCreatedDate;
+  }
 
   /**
    * Encryption Algorithm used to sign the JWT Claim.
@@ -53,9 +64,10 @@ export default class AssignmentGradingServices {
     private clientId: string,
     private deploymentId: string,
     private authServer: string,
+    private keyId: string,
     private rsaPrivateKey: string,
   ) {
-    if (this.DEBUG) {
+    if (!this.DEBUG) {
       console.log('AssignmentGradingServices constructor');
       console.log({
         issuer: this.issuer,
@@ -63,32 +75,30 @@ export default class AssignmentGradingServices {
         deploymentId: this.deploymentId,
         authServer: this.authServer,
         rsaPrivateKey: this.rsaPrivateKey,
+        keyId: this.keyId,
       });
     }
   }
 
   /**
    * Initializes the service.
-   * 
+   *
    * Obtains the oAuth2 Access Token.
    */
   public async init() {
-    const data: LtiAdvantageAccessToken = await this.generateLTIAdvantageServicesAccessToken();
-    this.tokenType = data.tokenType;
-    this.accessToken = data.accessToken;
-    if (this.DEBUG) {
-      console.log({
-        tokenType: this.tokenType,
-        accessToken: this.accessToken,
-      });
-    }
+    if (this._accessToken) return;
+    const data: LtiAdvantageAccessToken =
+      await this.generateLTIAdvantageServicesAccessToken();
+    this._tokenType = data.tokenType;
+    this._accessToken = data.accessToken;
+    this._accessTokenCreatedDate = data.created;
   }
 
   /**
    * POST /scores back to lineitem that resides in LMS.
    * If one doesn't exist for some reason, try to create one and POST again.
    */
-  public async postGrades({
+  public async postScore({
     resourceLinkId,
     studentAttempt,
     studentLti1p3UserId,
@@ -111,9 +121,7 @@ export default class AssignmentGradingServices {
       });
 
       try {
-        const {
-          status
-        } = await this.submitScoreToLMS({
+        const { status } = await this.submitScoreToLMS({
           scoreUrl: payload.scoreUrl,
           data: payload.data,
         });
@@ -124,7 +132,10 @@ export default class AssignmentGradingServices {
         };
       } catch (initialGradeResponseError) {
         if (initialGradeResponseError instanceof Error) {
-          console.log('initialGradeResponseError::', initialGradeResponseError.message)
+          console.log(
+            'initialGradeResponseError::',
+            initialGradeResponseError.message,
+          );
         }
         try {
           // * lineitem doesn't exist, lets create it!;
@@ -136,12 +147,10 @@ export default class AssignmentGradingServices {
             resourceId: String(studentAttempt?.modelInfo?.modelId),
             resourceLinkId,
           });
-          
+
           // *Try to POST /scores back now!
           try {
-            const {
-              status,
-            } = await this.submitScoreToLMS({
+            const { status } = await this.submitScoreToLMS({
               scoreUrl: `${lineitemUrl}/scores`,
               data: payload.data,
             });
@@ -151,7 +160,10 @@ export default class AssignmentGradingServices {
             };
           } catch (lineItemGradeResponseError) {
             if (lineItemGradeResponseError instanceof Error) {
-              console.log('lineItemGradeResponseError::', lineItemGradeResponseError.message)
+              console.log(
+                'lineItemGradeResponseError::',
+                lineItemGradeResponseError.message,
+              );
             }
             throw new ProjectError({
               name: 'FAILED_GRADING_CREATED_LINEITEM',
@@ -161,13 +173,14 @@ export default class AssignmentGradingServices {
           }
         } catch (lineItemCreationError) {
           if (lineItemCreationError instanceof Error) {
-            console.log('lineItemCreationError::', lineItemCreationError.message);
+            console.log(
+              'lineItemCreationError::',
+              lineItemCreationError.message,
+            );
           }
           try {
             // * Welp! The lineitem probably already exists and that's why we couldn't create it... lets use the already existing one!.
-            const {
-              data: existingLineitem,
-            } = await this.fetchLineitem({
+            const { data: existingLineitem } = await this.fetchLineitem({
               lineitemsUrl: payload.scoreUrl,
               lineItemId: studentAttempt?.modelInfo?.modelName,
               params: {
@@ -176,9 +189,7 @@ export default class AssignmentGradingServices {
             });
 
             try {
-              const {
-                status
-              } = await this.submitScoreToLMS({
+              const { status } = await this.submitScoreToLMS({
                 scoreUrl: `${existingLineitem.id}/scores`,
                 data: payload.data,
               });
@@ -186,13 +197,20 @@ export default class AssignmentGradingServices {
                 status,
                 updatedScoresUrlEndpoint: `${existingLineitem.id}/scores`,
               };
-            } catch (gradePassbackAfterFindingAlreadyExistingLineitemError) { // at this point, I'm 'just memeing....
-              if (gradePassbackAfterFindingAlreadyExistingLineitemError instanceof Error) {
-                console.log(gradePassbackAfterFindingAlreadyExistingLineitemError.message);
+            } catch (gradePassbackAfterFindingAlreadyExistingLineitemError) {
+              // at this point, I'm 'just memeing....
+              if (
+                gradePassbackAfterFindingAlreadyExistingLineitemError instanceof
+                Error
+              ) {
+                console.log(
+                  gradePassbackAfterFindingAlreadyExistingLineitemError.message,
+                );
               }
               throw new ProjectError({
                 name: 'FAILED_GRADING_FETCHED_LINEITEM',
-                message: 'Failed to submit grade after finding already created lineitem',
+                message:
+                  'Failed to submit grade after finding already created lineitem',
                 cause: gradePassbackAfterFindingAlreadyExistingLineitemError,
               });
             }
@@ -220,7 +238,7 @@ export default class AssignmentGradingServices {
 
   /**
    * Create lineitem.
-   * 
+   *
    * @param {
    *   lineitemsUrl,
    *   scoreMaximum,
@@ -229,7 +247,7 @@ export default class AssignmentGradingServices {
    *   resourceId,
    *   resourceLinkId,
    * } Object
-   * 
+   *
    * @returns `lineitem` URL.
    */
   public async createLineitem({
@@ -253,7 +271,7 @@ export default class AssignmentGradingServices {
         url: lineitemsUrl.replace('/scores', ''), // TODO TAM: clean....
         headers: {
           'Content-Type': LTI13_ADVANTAGE_GRADING_SERVICES.LineitemContentType,
-          Authorization: `${this.tokenType} ${this.accessToken}`,
+          Authorization: `${this._tokenType} ${this._accessToken}`,
         },
         data: JSON.stringify({
           startDateTime: new Date().toISOString(),
@@ -266,11 +284,9 @@ export default class AssignmentGradingServices {
         }),
       };
       const {
-        data: {
-          id: lineitemUrl
-        }
+        data: { id: lineitemUrl },
       } = await axios(lineitemCreationOptions);
-    
+
       return lineitemUrl;
     } catch (error) {
       throw new ProjectError({
@@ -283,10 +299,10 @@ export default class AssignmentGradingServices {
 
   /**
    * Fetch all lineitems that exist in the current context.
-   * 
+   *
    * @param {
    *   lineitemsUrl,
-   *   params,   
+   *   params,
    * } Object
    */
   public async fetchAllLineitems({
@@ -294,15 +310,54 @@ export default class AssignmentGradingServices {
     params,
   }: {
     lineitemsUrl: string;
-    params: any;
+    params?: any;
   }) {
     try {
-      return await axios.get(
+      const lineitemResults = await axios.get(
         lineitemsUrl.replace('/scores', ''),
         {
           headers: {
             accept: 'application/json',
-            Authorization: `${this.tokenType} ${this.accessToken}`,
+            Authorization: `${this._tokenType} ${this._accessToken}`,
+          },
+          params,
+        },
+      );
+      return lineitemResults.data;
+    } catch (error) {
+      throw new ProjectError({
+        name: 'FAILED_FETCHING_ALL_LINEITEMS',
+        message: `Error fetching all lineitems with the lineitems url: ${lineitemsUrl}`,
+        cause: error,
+      });
+    }
+  }
+
+  /**
+   * Fetch specific lineitem.
+   *
+   * @param {
+   *  lineitemsUrl,
+   *  lineItemId,
+   *  params,
+   * } Object
+   */
+  public async fetchLineitem({
+    lineitemsUrl,
+    lineItemId,
+    params,
+  }: {
+    lineitemsUrl: string;
+    lineItemId: string;
+    params: any;
+  }) {
+    try {
+      return await axios.get(
+        `${lineitemsUrl.replace('/scores', '')}/${lineItemId}`,
+        {
+          headers: {
+            accept: 'application/json',
+            Authorization: `${this._tokenType} ${this._accessToken}`,
           },
           params,
         },
@@ -317,53 +372,29 @@ export default class AssignmentGradingServices {
   }
 
   /**
-   * Fetch specific lineitem.
-   * 
-   * @param {
-   *  lineitemsUrl,
-   *  lineItemId,
-   *  params,
-  * } Object
-  */
- public async fetchLineitem({
-   lineitemsUrl,
-   lineItemId,
-   params,
- }: {
-   lineitemsUrl: string;
-   lineItemId: string;
-   params: any;
- }) {
-   try {
-     return await axios.get(
-       `${lineitemsUrl.replace('/scores', '')}/${lineItemId}`,
-       {
-         headers: {
-           accept: 'application/json',
-           Authorization: `${this.tokenType} ${this.accessToken}`,
-         },
-         params,
-       },
-     );
-   } catch (error) {
-     throw new ProjectError({
-       name: 'FAILED_FETCHING_ALL_LINEITEMS',
-       message: `Error fetching all lineitems with the lineitems url: ${lineitemsUrl}`,
-       cause: error,
-     });
-   }
- }
-
-  /**
    * Method that generates the necessary oAuth2 Access Token.
    */
   private async generateLTIAdvantageServicesAccessToken(): Promise<LtiAdvantageAccessToken> {
     try {
+      if (this._accessToken) {
+        const accessTokenStillValid = lessThanOneHourAgo(
+          this._accessTokenCreatedDate,
+        );
+        if (accessTokenStillValid) {
+          if (this.DEBUG) console.log('Access Token is still valid!');
+          const accessToken: LtiAdvantageAccessToken = {
+            tokenType: this._tokenType,
+            accessToken: this._accessToken,
+            expiresIn: 3600,
+            scope: LTI13_SCOPES.Score,
+            created: this._accessTokenCreatedDate,
+          };
+          return accessToken;
+        }
+      }
 
-      const {
-        oauth2AccessEndpoint,
-        params,
-      } = this.generateLTIAdvantageServicesAuthRequest();
+      const { oauth2AccessEndpoint, params } =
+        this.generateLTIAdvantageServicesAuthRequest();
 
       const options = {
         method: 'POST',
@@ -380,6 +411,10 @@ export default class AssignmentGradingServices {
         console.log('error getting access token...');
         if (error instanceof Error) {
           console.log(error.message);
+          // @ts-ignore
+          console.log(error.response.data.error);
+          // @ts-ignore
+          console.log(error.response.data.error_description);
         }
       }
 
@@ -389,24 +424,30 @@ export default class AssignmentGradingServices {
           tokenType: 'Bearer',
           status: 400,
           msg: 'Failed to get Access token for LTI 1.3 Assignment Grading Service(s).',
-          data: null,
+          created: false,
+          scope: LTI13_SCOPES.Score,
         };
         return accessTokenData;
       }
 
+      if (this.DEBUG) {
+        console.log('access token data:');
+        console.log(generatedAccessToken.data);
+      }
       const {
         token_type: tokenType,
         access_token: accessTokenValue,
         expires_in: expires,
         scope,
       } = generatedAccessToken.data;
+
       const obtainAccessTokenData: LtiAdvantageAccessToken = {
         tokenType,
         accessToken: accessTokenValue,
         expiresIn: expires,
         scope,
-      }
-
+        created: moment.utc().valueOf(),
+      };
       return obtainAccessTokenData;
     } catch (error) {
       throw new ProjectError({
@@ -416,7 +457,6 @@ export default class AssignmentGradingServices {
       });
     }
   }
-
 
   /**
    * Method that generates the LTI Advantage Auth Request needed to fetch the oAuth2 Access token.
@@ -435,37 +475,39 @@ export default class AssignmentGradingServices {
         iat: Math.floor(Date.now() / 1000) - 5,
         // JWT is considered expired ~1 minute from now
         exp: Math.floor(Date.now() / 1000) + 60,
-        jti: `lti-service-token${encodeURIComponent([...Array(25)].map((_) => ((Math.random() * 36) | 0).toString(36)).join(``))}`,
-        'https://purl.imsglobal.org/spec/lti/claim/deployment_id': this.deploymentId,
+        jti: `lti-service-token${encodeURIComponent(
+          [...Array(25)]
+            .map((_) => ((Math.random() * 36) | 0).toString(36))
+            .join(``),
+        )}`,
+        'https://purl.imsglobal.org/spec/lti/claim/deployment_id':
+          this.deploymentId,
       };
-      
+
       let jsonWebToken = '';
       try {
         const signOptions: SignOptions = {
           algorithm: this.encryptionAlgorithm,
           keyid: this.keyId,
         };
-        jsonWebToken = jwt.sign(
-          jwtClaim,
-          this.rsaPrivateKey,
-          signOptions
-        );
+        jsonWebToken = jwt.sign(jwtClaim, this.rsaPrivateKey, signOptions);
       } catch (error) {
         console.log('error signing JWT claim...');
         if (error instanceof Error) {
           console.log(error.message);
         }
       }
-  
+
       return {
         oauth2AccessEndpoint: this.authServer,
         params: {
           grant_type: LTI13_ADVANTAGE_SERVICES_AUTH.ClientCredentials,
-          client_assertion_type: LTI13_ADVANTAGE_SERVICES_AUTH.ClientAssertionType,
+          client_assertion_type:
+            LTI13_ADVANTAGE_SERVICES_AUTH.ClientAssertionType,
           client_assertion: jsonWebToken,
           scope: LTI13_SCOPES.Score,
-        }
-      }; 
+        },
+      };
     } catch (error) {
       throw new ProjectError({
         name: 'FAILED_TO_GENERATE_LTI_ADVANTAGE_AUTH_REQUEST',
@@ -477,12 +519,12 @@ export default class AssignmentGradingServices {
 
   /**
    * Helper method that constructs the payload ans score url for the lineitem.
-   * 
+   *
    * @param {
    *   studentAttempt,
-   *   studentLti1p3UserId,   
+   *   studentLti1p3UserId,
    * } Object
-   * 
+   *
    * @returns Payload
    */
   private constructPayloadAndScoreUrl({
@@ -492,14 +534,9 @@ export default class AssignmentGradingServices {
     studentAttempt: StudentAttempt;
     studentLti1p3UserId: string;
   }): Payload {
-
     // Grab all necessary values from student attempt:
-    const {
-      gradeOutcomeUrl,
-      pointsAvailable,
-      pointsEarned,
-      complete,
-    } = studentAttempt;
+    const { gradeOutcomeUrl, pointsAvailable, pointsEarned, complete } =
+      studentAttempt;
     const body = {
       scoreGiven: pointsEarned,
       scoreMaximum: pointsAvailable,
@@ -508,19 +545,16 @@ export default class AssignmentGradingServices {
       timestamp: new Date().toISOString(),
       userId: studentLti1p3UserId,
     };
-  
+
     let scoreUrl = `${gradeOutcomeUrl}/scores`;
     if (gradeOutcomeUrl.indexOf('?') !== -1) {
-      const [
-        url,
-        query
-      ] = [
+      const [url, query] = [
         gradeOutcomeUrl.split('?')[0],
-        gradeOutcomeUrl.split('?')[1]
+        gradeOutcomeUrl.split('?')[1],
       ];
       scoreUrl = `${url}/scores?${query}`;
     }
-  
+
     return {
       data: JSON.stringify(body),
       scoreUrl,
@@ -529,7 +563,7 @@ export default class AssignmentGradingServices {
 
   /**
    * Method that POST's scores to the current context within the LMS.
-   * 
+   *
    * @param {
    *   scoreUrl,
    *   data,
@@ -541,7 +575,7 @@ export default class AssignmentGradingServices {
       url: scoreUrl,
       headers: {
         'Content-Type': LTI13_ADVANTAGE_GRADING_SERVICES.ScoresContentType,
-        Authorization: `${this.tokenType} ${this.accessToken}`,
+        Authorization: `${this._tokenType} ${this._accessToken}`,
       },
       data,
     };
@@ -549,5 +583,4 @@ export default class AssignmentGradingServices {
 
     return await axios(gradeOutcomeOptions);
   }
-
 }
