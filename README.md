@@ -32,10 +32,12 @@ pnpm install lti-1p3-ags
 *Assignment and Grade Services Overview -- taken from the official 1EdTech AGS Specification*
 
 ## Supported Methods
-- postScore();
-- createLineitem();
-- fetchAllLineitems();
-- fetchLineitem();
+```javascript
+postScore();
+createLineitem();
+fetchAllLineitems();
+fetchLineitem();
+```
 
 Other CRUD operations currently in progress.
 
