@@ -50,6 +50,7 @@ const ags = new AGS({
   issuer,
   clientId,
   deploymentId,
+  authServer <-- OIDC URL
   rsaPrivateKey,
 });
 
@@ -57,7 +58,14 @@ const ags = new AGS({
 // For instance,  you can do something like this:
 let createdLineitem = null;
 try {
-  createdLineitem = await ags.createLineitem();
+  createdLineitem = await ags.createLineitem({
+    lineitemsUrl,
+    scoreMaximum,
+    label,
+    tag,
+    resourceId,
+    resourceLinkId,
+  });
 } catch (error) {
   throw error(`Error in creating lineitem`, error); 
 }
@@ -83,8 +91,51 @@ try {
 .
 .
 
-// Posting back grade(s):
-const gradePassback = await ags.postGrades();
+// Posting back grade(s) to a specific lineitem that resides within the LMS:
+const gradePassbackResult = await ags.postGrades({
+  resourceLinkId,
+  studentAttempt,
+  studentLti1p3UserId,
+});
+
+const {
+  status: gradePostResponseStatus,
+  updatedScoresUrlEndpoint, // passed back just in case you want to do anything with it.
+} = gradePassbackResult;
+
+if (
+  gradePostResponseStatus === 200
+  || gradePostResponseStatus === 201
+) {
+  // do something!
+}
+
+// Another method for POSTing scores to the LMS:
+// *This just requires you know the score url, and have already created the data payload object which has this structure:
+
+/*
+{
+  scoreGiven: <user's calculated score>,
+  scoreMaximum: <maximum score user could achieve>,
+  activityProgress: 'Completed',
+  gradingProgress: 'FullyGraded',
+  timestamp: new Date().toISOString(),
+  userId: <user's unique id>,
+}
+*/
+const {
+  status,
+} = await ags.submitScoreToLMS({
+  scoreUrl,
+  data,
+});
+
+if (
+  status === 200
+  || status === 201
+) {
+  // do something!
+}
 ```
 
 <!-- LICENSE -->

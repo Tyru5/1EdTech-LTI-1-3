@@ -29,21 +29,22 @@ export default class AssignmentGradingServices {
   private DEBUG: boolean = true;
 
   /**
-   *
+   * oAuth2 Access Token needed for services calls.
    */
-  public accessToken: string | null = '';
+  public accessToken: string = '';
   /**
-   *
+   * Access Token Authorization type.
    */
   public tokenType: string = 'Bearer';
 
   /**
-   * TODO TAM clean...
+   * TODO TAM clean: Allow user to set whatever value they want for this.
+   * Primary key to map the rsa public/private key to.
    */
   private keyId: string = '1';
 
   /**
-   * TODO TAM clean: Allow a global option change for this.
+   * Encryption Algorithm used to sign the JWT Claim.
    */
   private encryptionAlgorithm: Algorithm = 'RS256';
 
@@ -67,7 +68,9 @@ export default class AssignmentGradingServices {
   }
 
   /**
+   * Initializes the service.
    * 
+   * Obtains the oAuth2 Access Token.
    */
   public async init() {
     const data: LtiAdvantageAccessToken = await this.generateLTIAdvantageServicesAccessToken();
@@ -117,7 +120,7 @@ export default class AssignmentGradingServices {
 
         return {
           status,
-          updatedEndpoint: null,
+          updatedScoresUrlEndpoint: null,
         };
       } catch (initialGradeResponseError) {
         if (initialGradeResponseError instanceof Error) {
@@ -144,7 +147,7 @@ export default class AssignmentGradingServices {
             });
             return {
               status,
-              updatedEndpoint: `${lineitemUrl}/scores`,
+              updatedScoresUrlEndpoint: `${lineitemUrl}/scores`,
             };
           } catch (lineItemGradeResponseError) {
             if (lineItemGradeResponseError instanceof Error) {
@@ -181,7 +184,7 @@ export default class AssignmentGradingServices {
               });
               return {
                 status,
-                updatedEndpoint: `${existingLineitem.id}/scores`,
+                updatedScoresUrlEndpoint: `${existingLineitem.id}/scores`,
               };
             } catch (gradePassbackAfterFindingAlreadyExistingLineitemError) { // at this point, I'm 'just memeing....
               if (gradePassbackAfterFindingAlreadyExistingLineitemError instanceof Error) {
@@ -216,10 +219,16 @@ export default class AssignmentGradingServices {
   }
 
   /**
+   * Create lineitem.
    * 
    * @param {
-   *   params...
-   * }
+   *   lineitemsUrl,
+   *   scoreMaximum,
+   *   label,
+   *   tag,
+   *   resourceId,
+   *   resourceLinkId,
+   * } Object
    * 
    * @returns `lineitem` URL.
    */
@@ -273,10 +282,12 @@ export default class AssignmentGradingServices {
   }
 
   /**
+   * Fetch all lineitems that exist in the current context.
    * 
    * @param {
-   *   params...
-   * }
+   *   lineitemsUrl,
+   *   params,   
+   * } Object
    */
   public async fetchAllLineitems({
     lineitemsUrl,
@@ -306,10 +317,13 @@ export default class AssignmentGradingServices {
   }
 
   /**
+   * Fetch specific lineitem.
    * 
    * @param {
-  *   params...
-  * }
+   *  lineitemsUrl,
+   *  lineItemId,
+   *  params,
+  * } Object
   */
  public async fetchLineitem({
    lineitemsUrl,
@@ -340,10 +354,8 @@ export default class AssignmentGradingServices {
    }
  }
 
-
-
   /**
-   *
+   * Method that generates the necessary oAuth2 Access Token.
    */
   private async generateLTIAdvantageServicesAccessToken(): Promise<LtiAdvantageAccessToken> {
     try {
@@ -373,7 +385,7 @@ export default class AssignmentGradingServices {
 
       if (!generatedAccessToken) {
         const accessTokenData: LtiAdvantageAccessToken = {
-          accessToken: null,
+          accessToken: '',
           tokenType: 'Bearer',
           status: 400,
           msg: 'Failed to get Access token for LTI 1.3 Assignment Grading Service(s).',
@@ -407,7 +419,7 @@ export default class AssignmentGradingServices {
 
 
   /**
-   * 
+   * Method that generates the LTI Advantage Auth Request needed to fetch the oAuth2 Access token.
    */
   private generateLTIAdvantageServicesAuthRequest(): LtiAdvantageServicesAuthRequest {
     try {
@@ -464,7 +476,14 @@ export default class AssignmentGradingServices {
   }
 
   /**
-   *
+   * Helper method that constructs the payload ans score url for the lineitem.
+   * 
+   * @param {
+   *   studentAttempt,
+   *   studentLti1p3UserId,   
+   * } Object
+   * 
+   * @returns Payload
    */
   private constructPayloadAndScoreUrl({
     studentAttempt,
@@ -509,8 +528,12 @@ export default class AssignmentGradingServices {
   }
 
   /**
+   * Method that POST's scores to the current context within the LMS.
    * 
-   * @param param0 
+   * @param {
+   *   scoreUrl,
+   *   data,
+   * } Object
    */
   private async submitScoreToLMS({ scoreUrl, data }: Payload) {
     const gradeOutcomeOptions = {

@@ -5,5 +5,5 @@ export interface LtiAdvantageAccessToken {
   expiresIn?: number;
   scope?: string;
   tokenType: string;
-  accessToken: string | null;
+  accessToken: string;
 }
