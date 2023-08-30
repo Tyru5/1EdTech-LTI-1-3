@@ -1,5 +1,11 @@
 # 1edtech-lti-1-3-ags
 
+## 1.0.0
+
+### Major Changes
+
+- ff73ea5: LTI 1.3 AGS Logic implemented.
+
 ## 0.1.1
 
 ### Patch Changes
