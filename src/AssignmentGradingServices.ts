@@ -82,13 +82,19 @@ export default class AssignmentGradingServices {
    *
    * Obtains the oAuth2 Access Token.
    */
-  public async init() {
+  public async init(callback?: Function) {
     if (this._accessToken) return;
-    const data: LtiAdvantageAccessToken =
-      await this.generateLTIAdvantageServicesAccessToken();
+    const data: LtiAdvantageAccessToken = await this.generateLTIAdvantageServicesAccessToken();
     this._tokenType = data.tokenType;
     this._accessToken = data.accessToken;
     this._accessTokenCreatedDate = data.created;
+    if (callback) {
+      callback({
+        accessToken: this._accessToken,
+        createdDate: this._accessTokenCreatedDate,
+        tokenType: this._tokenType,
+      });
+    }
   }
 
   /**
@@ -197,8 +203,7 @@ export default class AssignmentGradingServices {
             } catch (gradePassbackAfterFindingAlreadyExistingLineitemError) {
               // at this point, I'm 'just memeing....
               if (
-                gradePassbackAfterFindingAlreadyExistingLineitemError instanceof
-                Error
+                gradePassbackAfterFindingAlreadyExistingLineitemError instanceof Error
               ) {
                 console.log(
                   gradePassbackAfterFindingAlreadyExistingLineitemError.message,
@@ -374,9 +379,7 @@ export default class AssignmentGradingServices {
   private async generateLTIAdvantageServicesAccessToken(): Promise<LtiAdvantageAccessToken> {
     try {
       if (this._accessToken) {
-        const accessTokenStillValid = lessThanOneHourAgo(
-          this._accessTokenCreatedDate,
-        );
+        const accessTokenStillValid = lessThanOneHourAgo(this._accessTokenCreatedDate);
         if (accessTokenStillValid) {
           if (this.DEBUG) console.log('Access Token is still valid!');
           const accessToken: LtiAdvantageAccessToken = {
@@ -390,9 +393,10 @@ export default class AssignmentGradingServices {
         }
       }
 
-      const { oauth2AccessEndpoint, params } =
-        this.generateLTIAdvantageServicesAuthRequest();
-
+      const {
+        oauth2AccessEndpoint,
+        params,
+      } = this.generateLTIAdvantageServicesAuthRequest();
       const options = {
         method: 'POST',
         url: oauth2AccessEndpoint,
