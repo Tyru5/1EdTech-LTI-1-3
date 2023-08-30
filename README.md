@@ -20,8 +20,8 @@ A library implementing the 1EdTechLTI 1.3 [Assignment Grading Services](https://
 - [Contact](#contact)
 
 ## Installation
-```javascript
- npm install lti-1p3-ags
+```zsh
+pnpm install lti-1p3-ags
 ```
 
 ## Supported LTI Version
