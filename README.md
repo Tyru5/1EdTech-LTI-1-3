@@ -14,9 +14,8 @@ A library implementing the 1EdTechLTI 1.3 [Assignment Grading Services](https://
 
 <!-- TABLE OF CONTENTS -->
 ## Table of Contents
-- [About the Project](#about-the-project)
-  - [Installation](#installation)
-  - [Usage](#usage)
+- [Installation](#installation)
+- [Usage](#usage)
 - [License](#license)
 - [Contact](#contact)
 
