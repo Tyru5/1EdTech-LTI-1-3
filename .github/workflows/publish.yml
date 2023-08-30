@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - "main"
+  workflow_dispatch: # adding the workflow_dispatch so it can be triggered manually
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
