@@ -26,10 +26,6 @@ import {
 } from './utils/constants';
 
 export default class AssignmentGradingServices {
-  /**
-   * Global DEBUG flag.
-   */
-  private DEBUG: boolean = true;
 
   /**
    * oAuth2 Access Token needed for services calls.
@@ -66,6 +62,7 @@ export default class AssignmentGradingServices {
     private authServer: string,
     private keyId: string,
     private rsaPrivateKey: string,
+    private DEBUG?: boolean,
   ) {
     if (!this.DEBUG) {
       console.log('AssignmentGradingServices constructor');
