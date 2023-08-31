@@ -73,8 +73,20 @@ try {
 
   /**
    * Important! Need to invoke the `init()` method.
+   * 
+   * You have the option of passing a callback function if need be. It passes back the Access Token, Token Type, and
+   * Access Token created date (UTC).
    */
-  await ags.init();
+  await ags.init( (data) => {
+    const {
+      accessToken,
+      createDate,
+      tokenType,
+    } = data;
+    // Finished initializing!
+
+    // Do something here if you need to!
+  });
 
   // From here, you can perform CRUD operatinos on lineitem(s), and review the Access Token that was generated:
   console.log(ags.accessToken);
