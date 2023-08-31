@@ -35,6 +35,9 @@ export default class AssignmentGradingServices {
   public get accessToken(): string {
     return this._accessToken;
   }
+  public set accessToken(value: string) {
+    this._accessToken = value;
+  }
   /**
    * Access Token Authorization type.
    */
@@ -115,7 +118,6 @@ export default class AssignmentGradingServices {
    *
    * Obtains the oAuth2 Access Token.
    */
-  // @callMethodOnlyOnce()
   public async init(callback?: Function) {
     console.log('calling this only once...', this._accessToken);
     if (this._accessToken) return;
@@ -411,7 +413,7 @@ export default class AssignmentGradingServices {
   /**
    * Method that generates the necessary oAuth2 Access Token.
    */
-  private async generateLTIAdvantageServicesAccessToken(): Promise<LtiAdvantageAccessToken> {
+  public async generateLTIAdvantageServicesAccessToken(): Promise<LtiAdvantageAccessToken> {
     try {
       if (this._accessToken) {
         const accessTokenStillValid = lessThanOneHourAgo(this._accessTokenCreatedDate);
@@ -484,6 +486,12 @@ export default class AssignmentGradingServices {
         scope,
         created: moment.utc().valueOf(),
       };
+
+      // Setting the necessary values, just in case the user wants to invoke this method without the invocation of the
+      // `init()` method.
+      this._accessToken            = obtainAccessTokenData.accessToken;
+      this._tokenType              = obtainAccessTokenData.tokenType;
+      this._accessTokenCreatedDate = obtainAccessTokenData.created;
       return obtainAccessTokenData;
     } catch (error) {
       throw new ProjectError({
