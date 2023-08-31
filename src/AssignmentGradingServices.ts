@@ -64,7 +64,7 @@ export default class AssignmentGradingServices {
     private rsaPrivateKey: string,
     private DEBUG?: boolean,
   ) {
-    if (!this.DEBUG) {
+    if (this.DEBUG) {
       console.log('AssignmentGradingServices constructor');
       console.log({
         issuer: this.issuer,
