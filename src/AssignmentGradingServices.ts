@@ -53,6 +53,9 @@ export default class AssignmentGradingServices {
   public get accessTokenCreatedDate(): any {
     return this._accessTokenCreatedDate;
   }
+  public set accessTokenCreatedDate(value: string) {
+    this._accessTokenCreatedDate = value;
+  }
 
   /**
    * Encryption Algorithm used to sign the JWT Claim.
@@ -75,7 +78,7 @@ export default class AssignmentGradingServices {
         clientId: this.clientId,
         deploymentId: this.deploymentId,
         authServer: this.authServer,
-        rsaPrivateKey: this.rsaPrivateKey,
+        rsaPrivateKey: 'not going to outpout this... for obvious reasons.',
         keyId: this.keyId,
       });
     }
@@ -119,7 +122,6 @@ export default class AssignmentGradingServices {
    * Obtains the oAuth2 Access Token.
    */
   public async init(callback?: Function) {
-    console.log('calling this only once...', this._accessToken);
     if (this._accessToken) return;
     const data: LtiAdvantageAccessToken = await this.generateLTIAdvantageServicesAccessToken();
     this._tokenType = data.tokenType;
@@ -412,6 +414,13 @@ export default class AssignmentGradingServices {
 
   /**
    * Method that generates the necessary oAuth2 Access Token.
+   *
+   * Essentially, we need to create the necessary headers to generate an access token for us to utilize.
+   * 
+   * * All the new LTI Advantage services require this.
+   * 
+   * @see: https://www.imsglobal.org/spec/lti-ags/v2p0/
+   * @see: https://www.imsglobal.org/spec/security/v1p0/#using-json-web-tokens-with-oauth-2-0-client-credentials-grant
    */
   public async generateLTIAdvantageServicesAccessToken(): Promise<LtiAdvantageAccessToken> {
     try {
