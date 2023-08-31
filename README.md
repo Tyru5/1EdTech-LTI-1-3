@@ -71,6 +71,18 @@ try {
     fs.readFileSync('path/to/private-key.pem || string', 'utf-8'),
   );
 
+  // OR
+  
+  // Create global AGS instance:
+  const instance = AGS.new(
+    issuer,
+    clientId,
+    deploymentId,
+    oAuth2AccessEndpoint,
+    keyId,
+    fs.readFileSync('path/to/private-key.pem || string', 'utf-8'),
+  ).getAGSInstance();
+
   /**
    * Important! Need to invoke the `init()` method.
    * 

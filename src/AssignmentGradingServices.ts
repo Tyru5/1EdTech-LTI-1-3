@@ -8,6 +8,7 @@ import qs from 'qs';
 import jwt, { Algorithm, SignOptions } from 'jsonwebtoken';
 import moment from 'moment';
 
+// Util functions:
 import lessThanOneHourAgo from './utils/lessThanOneHourAgo';
 
 // Custom Types:
@@ -78,11 +79,45 @@ export default class AssignmentGradingServices {
   }
 
   /**
+   * Static function to allow for method chaining without having to assign to a variable first.
+   */
+  public static new(
+    issuer: string,
+    clientId: string,
+    deploymentId: string,
+    authServer: string,
+    keyId: string,
+    rsaPrivateKey: string,
+    DEBUG?: boolean,
+  ): AssignmentGradingServices {
+    return new AssignmentGradingServices(
+      issuer,
+      clientId,
+      deploymentId,
+      authServer,
+      keyId,
+      rsaPrivateKey,
+      DEBUG,
+    );
+  }
+
+  /**
+   * Getter to return AGS instance.
+   * 
+   * @returns this
+   */
+  public getAGSInstance(): AssignmentGradingServices {
+    return this;
+  }
+
+  /**
    * Initializes the service.
    *
    * Obtains the oAuth2 Access Token.
    */
+  // @callMethodOnlyOnce()
   public async init(callback?: Function) {
+    console.log('calling this only once...', this._accessToken);
     if (this._accessToken) return;
     const data: LtiAdvantageAccessToken = await this.generateLTIAdvantageServicesAccessToken();
     this._tokenType = data.tokenType;
