@@ -78,7 +78,7 @@ export default class AssignmentGradingServices {
         clientId: this.clientId,
         deploymentId: this.deploymentId,
         authServer: this.authServer,
-        rsaPrivateKey: 'not going to outpout this... for obvious reasons.',
+        rsaPrivateKey: 'https://www.youtube.com/watch?v=Vhh_GeBPOhs',
         keyId: this.keyId,
       });
     }
@@ -128,6 +128,11 @@ export default class AssignmentGradingServices {
     this._accessToken = data.accessToken;
     this._accessTokenCreatedDate = data.created;
     if (callback) {
+      if (this.DEBUG) {
+        console.log('callback function provided: ', {
+          callback,
+        });
+      }
       callback({
         accessToken: this._accessToken,
         createdDate: this._accessTokenCreatedDate,
@@ -161,6 +166,11 @@ export default class AssignmentGradingServices {
         studentAttempt,
         studentLti1p3UserId,
       });
+      if (this.DEBUG) {
+        console.log('The constructed payload to send to the LMS platform is: ', {
+          payload,
+        });
+      }
 
       try {
         const { status } = await this.submitScoreToLMS({
@@ -324,6 +334,11 @@ export default class AssignmentGradingServices {
           resourceLinkId,
         }),
       };
+      if (this.DEBUG) {
+        console.log('lineitemCreationOptions: ', {
+          lineitemCreationOptions,
+        });
+      }
       const {
         data: { id: lineitemUrl },
       } = await axios(lineitemCreationOptions);
@@ -364,6 +379,11 @@ export default class AssignmentGradingServices {
           params,
         },
       );
+      if (this.DEBUG) {
+        console.log('fetchAllLineItems() results...', {
+          lineitemResults,
+        });
+      }
       return lineitemResults.data;
     } catch (error) {
       throw new ProjectError({
@@ -426,8 +446,8 @@ export default class AssignmentGradingServices {
     try {
       if (this._accessToken) {
         const accessTokenStillValid = lessThanOneHourAgo(this._accessTokenCreatedDate);
+        if (this.DEBUG) console.log('this_accessToken exists. Is access token still valid?: ', accessTokenStillValid);
         if (accessTokenStillValid) {
-          if (this.DEBUG) console.log('Access Token is still valid!');
           const accessToken: LtiAdvantageAccessToken = {
             tokenType: this._tokenType,
             accessToken: this._accessToken,
@@ -536,6 +556,11 @@ export default class AssignmentGradingServices {
         'https://purl.imsglobal.org/spec/lti/claim/deployment_id':
           this.deploymentId,
       };
+      if (this.DEBUG) {
+        console.log('jwtClaim: ', {
+          jwtClaim,
+        });
+      }
 
       let jsonWebToken = '';
       try {
