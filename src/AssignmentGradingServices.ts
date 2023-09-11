@@ -194,9 +194,9 @@ export default class AssignmentGradingServices {
           const lineitemUrl = await this.createLineitem({
             lineitemsUrl: payload.scoreUrl,
             scoreMaximum: studentAttempt.pointsAvailable,
-            label: studentAttempt?.modelInfo?.modelName,
+            label: studentAttempt?.modelInfo?.name,
             tag: 'grade',
-            resourceId: String(studentAttempt?.modelInfo?.modelId),
+            resourceId: String(studentAttempt?.modelInfo?.id),
             resourceLinkId,
           });
 
@@ -234,9 +234,9 @@ export default class AssignmentGradingServices {
             // * Welp! The lineitem probably already exists and that's why we couldn't create it... lets use the already existing one!.
             const { data: existingLineitem } = await this.fetchLineitem({
               lineitemsUrl: payload.scoreUrl,
-              lineItemId: studentAttempt?.modelInfo?.modelName,
+              lineItemId: studentAttempt?.modelInfo?.name,
               params: {
-                resource_id: String(studentAttempt?.modelInfo?.modelId),
+                resource_id: String(studentAttempt?.modelInfo?.id),
               },
             });
 
@@ -268,7 +268,7 @@ export default class AssignmentGradingServices {
           } catch (lineItemExistenceError) {
             throw new ProjectError({
               name: 'LINEITEM_DOES_NOT_EXIST',
-              message: `lineitem with url id: ${studentAttempt.modelInfo.modelId}`,
+              message: `lineitem with url id: ${studentAttempt.modelInfo.id}`,
               cause: lineItemExistenceError,
             });
           }
@@ -319,7 +319,7 @@ export default class AssignmentGradingServices {
     try {
       const lineitemCreationOptions = {
         method: 'POST',
-        url: lineitemsUrl.replace('/scores', ''), // TODO TAM: clean....
+        url: lineitemsUrl.replace('/scores', ''),
         headers: {
           'Content-Type': LTI13_ADVANTAGE_GRADING_SERVICES.LineitemContentType,
           Authorization: `${this._tokenType} ${this._accessToken}`,

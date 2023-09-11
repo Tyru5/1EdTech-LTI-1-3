@@ -19,7 +19,7 @@ export interface StudentAttempt {
    * Specific information on the 'model' (content).
    */
   modelInfo: {
-    modelId: number;
-    modelName: string;
+    id: string;
+    name: string;
   }
 }
