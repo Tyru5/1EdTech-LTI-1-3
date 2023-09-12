@@ -12,6 +12,7 @@ import moment from 'moment';
 import lessThanOneHourAgo from './utils/lessThanOneHourAgo';
 
 // Custom Types:
+import { LineItem } from './interfaces/LineItem';
 import { LtiAdvantageServicesAuthRequest } from './interfaces/LtiAdvantageServiceAuthRequest';
 import { LtiAdvantageAccessToken } from './interfaces/LtiAdvantageAccessToken';
 import { Payload } from './interfaces/Payload';
@@ -124,7 +125,7 @@ export default class AssignmentGradingServices {
   public async init(callback?: Function) {
     if (this._accessToken) return;
     const data: LtiAdvantageAccessToken = await this.generateLTIAdvantageServicesAccessToken();
-    this._tokenType = data.tokenType;
+    this._tokenType = data.tokenType.charAt(0).toUpperCase() + data.tokenType.slice(1);
     this._accessToken = data.accessToken;
     this._accessTokenCreatedDate = data.created;
     if (callback) {
@@ -219,7 +220,7 @@ export default class AssignmentGradingServices {
             }
             throw new ProjectError({
               name: 'FAILED_GRADING_CREATED_LINEITEM',
-              message: `Error trying to send scores back to newly created lineitem with lineitem url: ${lineitemUrl}/scores`,
+              message: `Error trying to send scores back to newly created lineitem with lineitem url: ${lineitemUrl}`,
               cause: lineItemGradeResponseError,
             });
           }
@@ -232,12 +233,9 @@ export default class AssignmentGradingServices {
           }
           try {
             // * Welp! The lineitem probably already exists and that's why we couldn't create it... lets use the already existing one!.
-            const { data: existingLineitem } = await this.fetchLineitem({
+            const existingLineitem: LineItem = await this.fetchLineitem({
               lineitemsUrl: payload.scoreUrl,
-              lineItemId: studentAttempt?.modelInfo?.name,
-              params: {
-                resource_id: String(studentAttempt?.modelInfo?.id),
-              },
+              lineItemResourceId: String(studentAttempt?.modelInfo?.id),
             });
 
             try {
@@ -251,9 +249,7 @@ export default class AssignmentGradingServices {
               };
             } catch (gradePassbackAfterFindingAlreadyExistingLineitemError) {
               // at this point, I'm 'just memeing....
-              if (
-                gradePassbackAfterFindingAlreadyExistingLineitemError instanceof Error
-              ) {
+              if (gradePassbackAfterFindingAlreadyExistingLineitemError instanceof Error) {
                 console.log(
                   gradePassbackAfterFindingAlreadyExistingLineitemError.message,
                 );
@@ -369,26 +365,28 @@ export default class AssignmentGradingServices {
     params?: any;
   }) {
     try {
-      const lineitemResults = await axios.get(
-        lineitemsUrl.replace('/scores', ''),
-        {
-          headers: {
-            accept: 'application/json',
-            Authorization: `${this._tokenType} ${this._accessToken}`,
-          },
-          params,
+      const fetchLineitemOptions = {
+        method: 'GET',
+        url: lineitemsUrl.replace('/scores', ''),
+        headers: {
+          'Content-Type': LTI13_ADVANTAGE_GRADING_SERVICES.LineitemContainerType,
+          Authorization: `${this._tokenType} ${this._accessToken}`,
         },
-      );
+        ...(params && { params }),
+      };
+      if (this.DEBUG) console.log({fetchLineitemOptions});
+      const lineitemResults = await axios(fetchLineitemOptions);
       if (this.DEBUG) {
         console.log('fetchAllLineItems() results...', {
           lineitemResults,
         });
       }
+
       return lineitemResults.data;
     } catch (error) {
       throw new ProjectError({
         name: 'FAILED_FETCHING_ALL_LINEITEMS',
-        message: `Error fetching all lineitems with the lineitems url: ${lineitemsUrl}`,
+        message: `Error fetching all lineitems with the lineitems url: ${lineitemsUrl.replace('/scores', '')}`,
         cause: error,
       });
     }
@@ -405,28 +403,53 @@ export default class AssignmentGradingServices {
    */
   public async fetchLineitem({
     lineitemsUrl,
-    lineItemId,
-    params,
+    lineItemResourceId,
   }: {
     lineitemsUrl: string;
-    lineItemId: string;
-    params: any;
-  }) {
+    lineItemResourceId: string;
+  }): Promise<LineItem> {
     try {
-      return await axios.get(
-        `${lineitemsUrl.replace('/scores', '')}/${lineItemId}`,
-        {
-          headers: {
-            accept: 'application/json',
-            Authorization: `${this._tokenType} ${this._accessToken}`,
-          },
-          params,
+      const lineitems = await this.fetchAllLineitems({
+        lineitemsUrl,
+      });
+      // @ts-ignore
+      const lineItemId = lineitems.filter((item) => item.resourceId === lineItemResourceId)[0]?.id?.split('/lineitems/')[1];
+      const fetchLineitemOptions = {
+        method: 'GET',
+        url: `${lineitemsUrl.replace('/scores', '')}/${lineItemId}`,
+        headers: {
+          'Content-Type': LTI13_ADVANTAGE_GRADING_SERVICES.LineitemContentType,
+          Authorization: `${this._tokenType} ${this._accessToken}`,
         },
-      );
+      };
+      if (this.DEBUG) console.log({fetchLineitemOptions});
+
+      const result = await axios(fetchLineitemOptions);
+      const lineitem: LineItem = {
+        // @ts-ignore
+        id: result?.data?.id,
+        // @ts-ignore,
+        startDate: result?.data?.startDate,
+        // @ts-ignore
+        endDateTime: result?.data?.endDateTime,
+        // @ts-ignore
+        scoreMaximum: result?.data?.scoreMaximum,
+        // @ts-ignore
+        label: result?.data?.label,
+        // @ts-ignore
+        tag: result?.data?.tag,
+        // @ts-ignore
+        resourceId: result?.data?.resourceId,
+        // @ts-ignore
+        resourceLinkId: result?.data?.resourceLinkId,
+      }
+      if (this.DEBUG) console.log({ constructedLineItemToRetur: lineitem, });
+
+      return lineitem;
     } catch (error) {
       throw new ProjectError({
-        name: 'FAILED_FETCHING_ALL_LINEITEMS',
-        message: `Error fetching all lineitems with the lineitems url: ${lineitemsUrl}`,
+        name: 'FAILED_FETCHING_LINEITEM',
+        message: `Error fetching lineitem with resourceId: ${lineItemResourceId}`,
         cause: error,
       });
     }
@@ -519,7 +542,7 @@ export default class AssignmentGradingServices {
       // Setting the necessary values, just in case the user wants to invoke this method without the invocation of the
       // `init()` method.
       this._accessToken            = obtainAccessTokenData.accessToken;
-      this._tokenType              = obtainAccessTokenData.tokenType;
+      this._tokenType              = obtainAccessTokenData.tokenType.charAt(0).toUpperCase() + obtainAccessTokenData.tokenType.slice(1);
       this._accessTokenCreatedDate = obtainAccessTokenData.created;
       return obtainAccessTokenData;
     } catch (error) {
