@@ -144,6 +144,7 @@ try {
   // Get:
   console.log(ags.accessToken);
   console.log(ags.accessTokenCreatedDate);
+  // Set:
   ags.accessToken = 'some-access-token-you-already-generated';
   ags.accessTokenCreatedDate = 'access-tokens-creation-date';
   
@@ -186,22 +187,28 @@ try {
     lineitemsUrl: 'lineitem-url-endpoint',
     params,
   });
+
   // OR
+
+  // You can invoke the `fetchLineitem()` method to fetch a specific line item,
+  // IF you have the `resourceId` value.
   const lineitem = await ags.fetchLineitem({
     lineitemsUrl,
-    lineItemId,
-    params,
+    lineItemResourceId, // <-- This identifier has to conform to the value you gave the `resourceId` for the `lineitem`
   });
   console.log(lineitem);
   /**
-   * [
-      {
-        id: 'lorem ipsum',
-        scoreMaximum: 2,
-        label: 'user profile - enable captions',
-        resourceLinkId: 'resource-link-id'
-      }
-    ]
+   *
+    {
+      id: 'url-id',
+      startDate: '',
+      endDateTime: '',
+      scoreMaximum: 10,
+      label: '10 Second Timer -- new worth 10 points.',
+      tag: 'grade',
+      resourceId: '<whatever-value-was-given>',
+      resourceLinkId: 'resource-link-id-value'
+    }
   */
 
  // Posting scores:
