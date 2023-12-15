@@ -644,7 +644,6 @@ export default class AssignmentGradingServices {
     } = studentAttempt;
     /**
      * From the official LTI 1.3 AGS specification:
-     * The maximum score for this line item.
      * Maximum score *MUST* be a numeric non-null value, *strictly greater* than 0.
      * 
      * Found out that some user's were configuring their content to have 0 points available, but still be worth points
