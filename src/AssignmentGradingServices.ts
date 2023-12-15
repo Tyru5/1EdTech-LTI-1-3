@@ -636,11 +636,26 @@ export default class AssignmentGradingServices {
     studentLti1p3UserId: string;
   }): Payload {
     // Grab all necessary values from student attempt:
-    const { gradeOutcomeUrl, pointsAvailable, pointsEarned, complete } =
-      studentAttempt;
+    const {
+      gradeOutcomeUrl,
+      pointsAvailable,
+      pointsEarned,
+      complete,
+    } = studentAttempt;
+    /**
+     * From the official LTI 1.3 AGS specification:
+     * The maximum score for this line item.
+     * Maximum score *MUST* be a numeric non-null value, *strictly greater* than 0.
+     * 
+     * Found out that some user's were configuring their content to have 0 points available, but still be worth points
+     * in the platform. If this is the case, default it to them always receiving the full amount configured in the platform.
+     */
+    const scoreGivenScoreMaximum = {
+      ...((pointsAvailable > 0) && { scoreGiven: 1 }),
+      ...((pointsAvailable > 0) && { scoreMaximum: 1 }),
+    };
     const body = {
-      scoreGiven: pointsEarned,
-      scoreMaximum: pointsAvailable,
+      ...scoreGivenScoreMaximum,
       activityProgress: complete ? 'Completed' : 'InProgress',
       gradingProgress: 'FullyGraded',
       timestamp: new Date().toISOString(),
