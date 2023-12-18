@@ -650,8 +650,8 @@ export default class AssignmentGradingServices {
      * in the platform. If this is the case, default it to them always receiving the full amount configured in the platform.
      */
     const scoreGivenScoreMaximum = {
-      ...((pointsAvailable > 0) && { scoreGiven: 1 }),
-      ...((pointsAvailable > 0) && { scoreMaximum: 1 }),
+      ...((pointsAvailable === 0) && { scoreGiven: 1 }),
+      ...((pointsAvailable === 0) && { scoreMaximum: 1 }),
     };
     const body = {
       ...scoreGivenScoreMaximum,
