@@ -649,12 +649,20 @@ export default class AssignmentGradingServices {
      * Found out that some user's were configuring their content to have 0 points available, but still be worth points
      * in the platform. If this is the case, default it to them always receiving the full amount configured in the platform.
      */
-    const scoreGivenScoreMaximum = {
-      ...((pointsAvailable === 0) && { scoreGiven: 1 }),
-      ...((pointsAvailable === 0) && { scoreMaximum: 1 }),
+    const scoreGivenScoreMaximum = () => {
+      if (pointsAvailable === 0) {
+        return {
+          scoreGiven: 1,
+          scoreMaximum: 1
+        }
+      }
+      return {
+        scoreGiven: pointsEarned,
+        scoreMaximum: pointsAvailable,
+      };
     };
     const body = {
-      ...scoreGivenScoreMaximum,
+      ...scoreGivenScoreMaximum(),
       activityProgress: complete ? 'Completed' : 'InProgress',
       gradingProgress: 'FullyGraded',
       timestamp: new Date().toISOString(),
