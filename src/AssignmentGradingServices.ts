@@ -654,7 +654,7 @@ export default class AssignmentGradingServices {
         return {
           scoreGiven: 1,
           scoreMaximum: 1
-        }
+        };
       }
       return {
         scoreGiven: pointsEarned,
