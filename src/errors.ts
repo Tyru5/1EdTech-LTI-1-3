@@ -9,6 +9,7 @@ type ErrorName =
   | 'FAILED_GRADING_FETCHED_LINEITEM'
   | 'LINEITEM_DOES_NOT_EXIST'
   | 'FAILED_POSTING_SCORES'
+  | 'FAILED_FETCHING_LINEITEM_RESULTS';
 
 
 export class ProjectError extends Error {

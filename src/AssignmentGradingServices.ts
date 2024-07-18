@@ -16,7 +16,6 @@ import { LineItem } from './interfaces/LineItem';
 import { LtiAdvantageServicesAuthRequest } from './interfaces/LtiAdvantageServiceAuthRequest';
 import { LtiAdvantageAccessToken } from './interfaces/LtiAdvantageAccessToken';
 import { Payload } from './interfaces/Payload';
-import { StudentAttempt } from './interfaces/StudentAttempt';
 import { ScorePayload } from './types/ScorePayload';
 
 // Custom Error:
@@ -29,7 +28,6 @@ import {
 } from './utils/constants';
 
 export default class AssignmentGradingServices {
-
   /**
    * oAuth2 Access Token needed for services calls.
    */
@@ -111,7 +109,7 @@ export default class AssignmentGradingServices {
 
   /**
    * Getter to return AGS instance.
-   * 
+   *
    * @returns this
    */
   public getAGSInstance(): AssignmentGradingServices {
@@ -150,15 +148,21 @@ export default class AssignmentGradingServices {
     lineitemUrl,
     scorePayload,
   }: {
-    lineitemUrl: string
-    scorePayload: ScorePayload,
+    lineitemUrl: string;
+    scorePayload: ScorePayload;
   }) {
     try {
-      const payload: Payload = this.constructPayloadAndScoreUrl(lineitemUrl, scorePayload);
+      const payload: Payload = this.constructPayloadAndScoreUrl(
+        lineitemUrl,
+        scorePayload,
+      );
       if (this.DEBUG) {
-        console.log('The constructed payload to send to the LMS platform is: ', {
-          payload,
-        });
+        console.log(
+          'The constructed payload to send to the LMS platform is: ',
+          {
+            payload,
+          },
+        );
       }
 
       const { status } = await this.submitScoreToLMS({
@@ -253,7 +257,7 @@ export default class AssignmentGradingServices {
    * Fetch all lineitems that exist in the current context.
    *
    * @param {
-   *   lineitemsUrl,
+   *   lineitemsContainerUrl,
    *   params,
    * } Object
    */
@@ -313,28 +317,20 @@ export default class AssignmentGradingServices {
           Authorization: `${this._tokenType} ${this._accessToken}`,
         },
       };
-      if (this.DEBUG) console.log({fetchLineitemOptions});
+      if (this.DEBUG) console.log({ fetchLineitemOptions });
 
       const result = await axios(fetchLineitemOptions);
       const lineitem: LineItem = {
-        // @ts-ignore
         id: result?.data?.id,
-        // @ts-ignore,
         startDate: result?.data?.startDate,
-        // @ts-ignore
         endDateTime: result?.data?.endDateTime,
-        // @ts-ignore
         scoreMaximum: result?.data?.scoreMaximum,
-        // @ts-ignore
         label: result?.data?.label,
-        // @ts-ignore
         tag: result?.data?.tag,
-        // @ts-ignore
         resourceId: result?.data?.resourceId,
-        // @ts-ignore
         resourceLinkId: result?.data?.resourceLinkId,
-      }
-      if (this.DEBUG) console.log({ constructedLineItemToRetur: lineitem, });
+      };
+      if (this.DEBUG) console.log({ constructedLineItemToRetur: lineitem });
 
       return lineitem;
     } catch (error) {
@@ -347,20 +343,51 @@ export default class AssignmentGradingServices {
   }
 
   /**
+   * @see: https://www.imsglobal.org/spec/lti-ags/v2p0#example-of-getting-the-results-for-a-line-item
+   */
+  public async fetchLineitemResults(lineitemsUrl: string) {
+    try {
+      const lineitemResultsOption = {
+        method: 'GET',
+        url: lineitemsUrl,
+        headers: {
+          'Content-Type': LTI13_ADVANTAGE_GRADING_SERVICES.LineItemResultContainerType,
+          Authorization: `${this._tokenType} ${this._accessToken}`,
+        },
+      };
+      if (this.DEBUG) console.log({ lineitemResultsOption });
+
+      const result = await axios(lineitemResultsOption);
+    } catch (error) {
+      throw new ProjectError({
+        name: 'FAILED_FETCHING_LINEITEM_RESULTS',
+        message: `Error fetching lineitem results forlineItemsUrl: ${lineitemsUrl}`,
+        cause: error,
+      });
+    }
+  }
+
+  /**
    * Method that generates the necessary oAuth2 Access Token.
    *
    * Essentially, we need to create the necessary headers to generate an access token for us to utilize.
-   * 
+   *
    * * All the new LTI Advantage services require this.
-   * 
+   *
    * @see: https://www.imsglobal.org/spec/lti-ags/v2p0/
    * @see: https://www.imsglobal.org/spec/security/v1p0/#using-json-web-tokens-with-oauth-2-0-client-credentials-grant
    */
   public async generateLTIAdvantageServicesAccessToken(): Promise<LtiAdvantageAccessToken> {
     try {
       if (this._accessToken) {
-        const accessTokenStillValid = lessThanOneHourAgo(this._accessTokenCreatedDate);
-        if (this.DEBUG) console.log('this_accessToken exists. Is access token still valid?: ', accessTokenStillValid);
+        const accessTokenStillValid = lessThanOneHourAgo(
+          this._accessTokenCreatedDate,
+        );
+        if (this.DEBUG)
+          console.log(
+            'this_accessToken exists. Is access token still valid?: ',
+            accessTokenStillValid,
+          );
         if (accessTokenStillValid) {
           const accessToken: LtiAdvantageAccessToken = {
             tokenType: this._tokenType,
@@ -432,8 +459,8 @@ export default class AssignmentGradingServices {
 
       // Setting the necessary values, just in case the user wants to invoke this method without the invocation of the
       // `init()` method.
-      this._accessToken            = obtainAccessTokenData.accessToken;
-      this._tokenType              = obtainAccessTokenData.tokenType.charAt(0).toUpperCase() + obtainAccessTokenData.tokenType.slice(1);
+      this._accessToken = obtainAccessTokenData.accessToken;
+      this._tokenType = obtainAccessTokenData.tokenType.charAt(0).toUpperCase() + obtainAccessTokenData.tokenType.slice(1);
       this._accessTokenCreatedDate = obtainAccessTokenData.created;
       return obtainAccessTokenData;
     } catch (error) {
@@ -519,7 +546,10 @@ export default class AssignmentGradingServices {
    *
    * @returns Payload
    */
-  private constructPayloadAndScoreUrl(lineitemUrl: string, scorePayload: ScorePayload): Payload {
+  private constructPayloadAndScoreUrl(
+    lineitemUrl: string,
+    scorePayload: ScorePayload,
+  ): Payload {
     const {
       activityProgress,
       gradingProgress,
@@ -533,7 +563,7 @@ export default class AssignmentGradingServices {
     /**
      * From the official LTI 1.3 AGS specification:
      * Maximum score *MUST* be a numeric non-null value, *strictly greater* than 0.
-     * 
+     *
      * Found out that some user's were configuring their content to have 0 points available, but still be worth points
      * in the platform. If this is the case, default it to them always receiving the full amount configured in the platform.
      */
@@ -541,7 +571,7 @@ export default class AssignmentGradingServices {
       if (scoreMaximum === 0) {
         return {
           scoreGiven: 1,
-          scoreMaximum: 1
+          scoreMaximum: 1,
         };
       }
       return {
@@ -555,6 +585,8 @@ export default class AssignmentGradingServices {
       gradingProgress,
       timestamp,
       userId,
+      ...(!!comment && { comment }),
+      ...(!!scoringUserId && { scoringUserId }),
     };
 
     let scoreUrl = `${lineitemUrl}/scores`;
