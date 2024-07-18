@@ -160,7 +160,7 @@ export default class AssignmentGradingServices {
         console.log(
           'The constructed payload to send to the LMS platform is: ',
           {
-            payload,
+            payload: JSON.stringify(payload, null, 2),
           },
         );
       }
@@ -599,8 +599,8 @@ export default class AssignmentGradingServices {
     }
 
     return {
-      data: JSON.stringify(body),
       scoreUrl,
+      data: JSON.stringify(body),
     };
   }
 
