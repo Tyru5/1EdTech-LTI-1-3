@@ -172,7 +172,6 @@ export default class AssignmentGradingServices {
 
       return {
         status,
-        updatedScoresUrlEndpoint: null,
       };
     } catch (error) {
       console.log('error from `postScore()`');
