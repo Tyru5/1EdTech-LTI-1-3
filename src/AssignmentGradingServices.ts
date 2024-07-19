@@ -181,7 +181,11 @@ export default class AssignmentGradingServices {
       }
       throw new ProjectError({
         name: 'FAILED_POSTING_SCORES',
-        message: 'Error in posting any and all scores back to the LMS []',
+        message: `Error in posting any and all scores back to the LMS. lineitem url: ${lineitemUrl} with scorePayload: ${JSON.stringify(
+          scorePayload,
+          null,
+          2,
+        )}`,
         cause: error,
       });
     }
