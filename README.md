@@ -214,7 +214,7 @@ try {
  // Compile this data your own way, but has to conform to the object structure below.
  // More info could be found in the `ScorePayload.d.ts` type.
  const scorePayload: ScorePayload = {
-  timestamp: string,
+  timestamp: string, // MUST be formatted using ISO 8601 with a sub-second precision
   scoreGiven: number,
   scoreMaximum: number,
   comment?: string,
