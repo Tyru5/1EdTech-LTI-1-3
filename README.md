@@ -223,10 +223,7 @@ try {
   userId: string,
   scoringUserId?: string
 };
-const {
-  status: gradePostResponseStatus, // Response status from making the AGS call.
-  updatedScoresUrlEndpoint, // <-- don't have to do antying with this, but you can if you want to.
-}  = await ags.postScore({
+const { status: gradePostResponseStatus }  = await ags.postScore({
   lineitemUrl,
   scorePayload,
 });
