@@ -16,7 +16,7 @@ import { LineItem } from './interfaces/LineItem';
 import { LtiAdvantageServicesAuthRequest } from './interfaces/LtiAdvantageServiceAuthRequest';
 import { LtiAdvantageAccessToken } from './interfaces/LtiAdvantageAccessToken';
 import { Payload } from './interfaces/Payload';
-import { StudentAttempt } from './interfaces/StudentAttempt';
+import { ScorePayload } from './types/ScorePayload';
 
 // Custom Error:
 import { ProjectError } from './errors';
@@ -28,7 +28,6 @@ import {
 } from './utils/constants';
 
 export default class AssignmentGradingServices {
-
   /**
    * oAuth2 Access Token needed for services calls.
    */
@@ -110,7 +109,7 @@ export default class AssignmentGradingServices {
 
   /**
    * Getter to return AGS instance.
-   * 
+   *
    * @returns this
    */
   public getAGSInstance(): AssignmentGradingServices {
@@ -144,140 +143,48 @@ export default class AssignmentGradingServices {
 
   /**
    * POST /scores back to lineitem that resides in LMS.
-   * If one doesn't exist for some reason, try to create one and POST again.
    */
   public async postScore({
-    resourceLinkId,
-    studentAttempt,
-    studentLti1p3UserId,
+    lineitemUrl,
+    scorePayload,
   }: {
-    resourceLinkId: string;
-    studentAttempt: StudentAttempt;
-    studentLti1p3UserId: string;
+    lineitemUrl: string;
+    scorePayload: ScorePayload;
   }) {
     try {
-      /**
-       * * We first have to see if we can submit the score, with the given endpoint recieved from the Lti message launch.
-       * * If that doesn't work, it means that the lineitem doesn't exist so we have to:
-       * *  - Create the lineitem
-       * *  - Then submit the grade.
-       */
-
-      const payload: Payload = this.constructPayloadAndScoreUrl({
-        studentAttempt,
-        studentLti1p3UserId,
-      });
+      const payload: Payload = this.constructPayloadAndScoreUrl(
+        lineitemUrl,
+        scorePayload,
+      );
       if (this.DEBUG) {
-        console.log('The constructed payload to send to the LMS platform is: ', {
-          payload,
-        });
+        console.log(
+          'The constructed payload to send to the LMS platform is: ',
+          {
+            payload: JSON.stringify(payload, null, 2),
+          },
+        );
       }
 
-      try {
-        const { status } = await this.submitScoreToLMS({
-          scoreUrl: payload.scoreUrl,
-          data: payload.data,
-        });
+      const { status } = await this.submitScoreToLMS({
+        scoreUrl: payload.scoreUrl,
+        data: payload.data,
+      });
 
-        return {
-          status,
-          updatedScoresUrlEndpoint: null,
-        };
-      } catch (initialGradeResponseError) {
-        if (initialGradeResponseError instanceof Error) {
-          console.log(
-            'initialGradeResponseError::',
-            initialGradeResponseError.message,
-          );
-        }
-        try {
-          // * lineitem doesn't exist, lets create it!;
-          const lineitemUrl = await this.createLineitem({
-            lineitemsUrl: payload.scoreUrl,
-            scoreMaximum: studentAttempt.pointsAvailable,
-            label: studentAttempt?.modelInfo?.name,
-            tag: 'grade',
-            resourceId: String(studentAttempt?.modelInfo?.id),
-            resourceLinkId,
-          });
-
-          // *Try to POST /scores back now!
-          try {
-            const { status } = await this.submitScoreToLMS({
-              scoreUrl: `${lineitemUrl}/scores`,
-              data: payload.data,
-            });
-            return {
-              status,
-              updatedScoresUrlEndpoint: `${lineitemUrl}/scores`,
-            };
-          } catch (lineItemGradeResponseError) {
-            if (lineItemGradeResponseError instanceof Error) {
-              console.log(
-                'lineItemGradeResponseError::',
-                lineItemGradeResponseError.message,
-              );
-            }
-            throw new ProjectError({
-              name: 'FAILED_GRADING_CREATED_LINEITEM',
-              message: `Error trying to send scores back to newly created lineitem with lineitem url: ${lineitemUrl}`,
-              cause: lineItemGradeResponseError,
-            });
-          }
-        } catch (lineItemCreationError) {
-          if (lineItemCreationError instanceof Error) {
-            console.log(
-              'lineItemCreationError::',
-              lineItemCreationError.message,
-            );
-          }
-          try {
-            // * Welp! The lineitem probably already exists and that's why we couldn't create it... lets use the already existing one!.
-            const existingLineitem: LineItem = await this.fetchLineitem({
-              lineitemsUrl: payload.scoreUrl,
-              lineItemResourceId: String(studentAttempt?.modelInfo?.id),
-            });
-
-            try {
-              const { status } = await this.submitScoreToLMS({
-                scoreUrl: `${existingLineitem.id}/scores`,
-                data: payload.data,
-              });
-              return {
-                status,
-                updatedScoresUrlEndpoint: `${existingLineitem.id}/scores`,
-              };
-            } catch (gradePassbackAfterFindingAlreadyExistingLineitemError) {
-              // at this point, I'm 'just memeing....
-              if (gradePassbackAfterFindingAlreadyExistingLineitemError instanceof Error) {
-                console.log(
-                  gradePassbackAfterFindingAlreadyExistingLineitemError.message,
-                );
-              }
-              throw new ProjectError({
-                name: 'FAILED_GRADING_FETCHED_LINEITEM',
-                message:
-                  'Failed to submit grade after finding already created lineitem',
-                cause: gradePassbackAfterFindingAlreadyExistingLineitemError,
-              });
-            }
-          } catch (lineItemExistenceError) {
-            throw new ProjectError({
-              name: 'LINEITEM_DOES_NOT_EXIST',
-              message: `lineitem with url id: ${studentAttempt.modelInfo.id}`,
-              cause: lineItemExistenceError,
-            });
-          }
-        }
-      }
+      return {
+        status,
+      };
     } catch (error) {
-      console.log('error from `sendScore()`');
+      console.log('error from `postScore()`');
       if (error instanceof Error) {
-        console.log(error.message);
+        console.log(error?.message);
       }
       throw new ProjectError({
         name: 'FAILED_POSTING_SCORES',
-        message: 'Error in posting any and all scores back to the LMS...',
+        message: `Error in posting any and all scores back to the LMS. lineitem url: ${lineitemUrl} with scorePayload: ${JSON.stringify(
+          scorePayload,
+          null,
+          2,
+        )}`,
         cause: error,
       });
     }
@@ -315,7 +222,7 @@ export default class AssignmentGradingServices {
     try {
       const lineitemCreationOptions = {
         method: 'POST',
-        url: lineitemsUrl.replace('/scores', ''),
+        url: lineitemsUrl,
         headers: {
           'Content-Type': LTI13_ADVANTAGE_GRADING_SERVICES.LineitemContentType,
           Authorization: `${this._tokenType} ${this._accessToken}`,
@@ -353,28 +260,28 @@ export default class AssignmentGradingServices {
    * Fetch all lineitems that exist in the current context.
    *
    * @param {
-   *   lineitemsUrl,
+   *   lineitemsContainerUrl,
    *   params,
    * } Object
    */
   public async fetchAllLineitems({
-    lineitemsUrl,
+    lineitemsContainerUrl,
     params,
   }: {
-    lineitemsUrl: string;
+    lineitemsContainerUrl: string;
     params?: any;
   }) {
     try {
       const fetchLineitemOptions = {
         method: 'GET',
-        url: lineitemsUrl.replace('/scores', ''),
+        url: lineitemsContainerUrl,
         headers: {
           'Content-Type': LTI13_ADVANTAGE_GRADING_SERVICES.LineitemContainerType,
           Authorization: `${this._tokenType} ${this._accessToken}`,
         },
         ...(params && { params }),
       };
-      if (this.DEBUG) console.log({fetchLineitemOptions});
+      if (this.DEBUG) console.log({ fetchLineitemOptions });
       const lineitemResults = await axios(fetchLineitemOptions);
       if (this.DEBUG) {
         console.log('fetchAllLineItems() results...', {
@@ -386,7 +293,7 @@ export default class AssignmentGradingServices {
     } catch (error) {
       throw new ProjectError({
         name: 'FAILED_FETCHING_ALL_LINEITEMS',
-        message: `Error fetching all lineitems with the lineitems url: ${lineitemsUrl.replace('/scores', '')}`,
+        message: `Error fetching all lineitems with the lineitems container url: ${lineitemsContainerUrl}`,
         cause: error,
       });
     }
@@ -397,59 +304,67 @@ export default class AssignmentGradingServices {
    *
    * @param {
    *  lineitemsUrl,
-   *  lineItemId,
-   *  params,
    * } Object
    */
   public async fetchLineitem({
     lineitemsUrl,
-    lineItemResourceId,
   }: {
     lineitemsUrl: string;
-    lineItemResourceId: string;
   }): Promise<LineItem> {
     try {
-      const lineitems = await this.fetchAllLineitems({
-        lineitemsUrl,
-      });
-      // @ts-ignore
-      const lineItemId = lineitems.filter((item) => item.resourceId === lineItemResourceId)[0]?.id?.split('/lineitems/')[1];
       const fetchLineitemOptions = {
         method: 'GET',
-        url: `${lineitemsUrl.replace('/scores', '')}/${lineItemId}`,
+        url: lineitemsUrl,
         headers: {
           'Content-Type': LTI13_ADVANTAGE_GRADING_SERVICES.LineitemContentType,
           Authorization: `${this._tokenType} ${this._accessToken}`,
         },
       };
-      if (this.DEBUG) console.log({fetchLineitemOptions});
+      if (this.DEBUG) console.log({ fetchLineitemOptions });
 
       const result = await axios(fetchLineitemOptions);
       const lineitem: LineItem = {
-        // @ts-ignore
         id: result?.data?.id,
-        // @ts-ignore,
         startDate: result?.data?.startDate,
-        // @ts-ignore
         endDateTime: result?.data?.endDateTime,
-        // @ts-ignore
         scoreMaximum: result?.data?.scoreMaximum,
-        // @ts-ignore
         label: result?.data?.label,
-        // @ts-ignore
         tag: result?.data?.tag,
-        // @ts-ignore
         resourceId: result?.data?.resourceId,
-        // @ts-ignore
         resourceLinkId: result?.data?.resourceLinkId,
-      }
-      if (this.DEBUG) console.log({ constructedLineItemToRetur: lineitem, });
+      };
+      if (this.DEBUG) console.log({ constructedLineItemToRetur: lineitem });
 
       return lineitem;
     } catch (error) {
       throw new ProjectError({
         name: 'FAILED_FETCHING_LINEITEM',
-        message: `Error fetching lineitem with resourceId: ${lineItemResourceId}`,
+        message: `Error fetching lineitem with lineItemsUrl: ${lineitemsUrl}`,
+        cause: error,
+      });
+    }
+  }
+
+  /**
+   * @see: https://www.imsglobal.org/spec/lti-ags/v2p0#example-of-getting-the-results-for-a-line-item
+   */
+  public async fetchLineitemResults(lineitemsUrl: string) {
+    try {
+      const lineitemResultsOption = {
+        method: 'GET',
+        url: lineitemsUrl,
+        headers: {
+          'Content-Type': LTI13_ADVANTAGE_GRADING_SERVICES.LineItemResultContainerType,
+          Authorization: `${this._tokenType} ${this._accessToken}`,
+        },
+      };
+      if (this.DEBUG) console.log({ lineitemResultsOption });
+
+      const result = await axios(lineitemResultsOption);
+    } catch (error) {
+      throw new ProjectError({
+        name: 'FAILED_FETCHING_LINEITEM_RESULTS',
+        message: `Error fetching lineitem results forlineItemsUrl: ${lineitemsUrl}`,
         cause: error,
       });
     }
@@ -459,17 +374,23 @@ export default class AssignmentGradingServices {
    * Method that generates the necessary oAuth2 Access Token.
    *
    * Essentially, we need to create the necessary headers to generate an access token for us to utilize.
-   * 
+   *
    * * All the new LTI Advantage services require this.
-   * 
+   *
    * @see: https://www.imsglobal.org/spec/lti-ags/v2p0/
    * @see: https://www.imsglobal.org/spec/security/v1p0/#using-json-web-tokens-with-oauth-2-0-client-credentials-grant
    */
   public async generateLTIAdvantageServicesAccessToken(): Promise<LtiAdvantageAccessToken> {
     try {
       if (this._accessToken) {
-        const accessTokenStillValid = lessThanOneHourAgo(this._accessTokenCreatedDate);
-        if (this.DEBUG) console.log('this_accessToken exists. Is access token still valid?: ', accessTokenStillValid);
+        const accessTokenStillValid = lessThanOneHourAgo(
+          this._accessTokenCreatedDate,
+        );
+        if (this.DEBUG)
+          console.log(
+            'this_accessToken exists. Is access token still valid?: ',
+            accessTokenStillValid,
+          );
         if (accessTokenStillValid) {
           const accessToken: LtiAdvantageAccessToken = {
             tokenType: this._tokenType,
@@ -541,8 +462,8 @@ export default class AssignmentGradingServices {
 
       // Setting the necessary values, just in case the user wants to invoke this method without the invocation of the
       // `init()` method.
-      this._accessToken            = obtainAccessTokenData.accessToken;
-      this._tokenType              = obtainAccessTokenData.tokenType.charAt(0).toUpperCase() + obtainAccessTokenData.tokenType.slice(1);
+      this._accessToken = obtainAccessTokenData.accessToken;
+      this._tokenType = obtainAccessTokenData.tokenType.charAt(0).toUpperCase() + obtainAccessTokenData.tokenType.slice(1);
       this._accessTokenCreatedDate = obtainAccessTokenData.created;
       return obtainAccessTokenData;
     } catch (error) {
@@ -622,65 +543,67 @@ export default class AssignmentGradingServices {
    * Helper method that constructs the payload ans score url for the lineitem.
    *
    * @param {
-   *   studentAttempt,
-   *   studentLti1p3UserId,
+   *   lineitemUrl,
+   *   scorePayload,
    * } Object
    *
    * @returns Payload
    */
-  private constructPayloadAndScoreUrl({
-    studentAttempt,
-    studentLti1p3UserId,
-  }: {
-    studentAttempt: StudentAttempt;
-    studentLti1p3UserId: string;
-  }): Payload {
-    // Grab all necessary values from student attempt:
+  private constructPayloadAndScoreUrl(
+    lineitemUrl: string,
+    scorePayload: ScorePayload,
+  ): Payload {
     const {
-      gradeOutcomeUrl,
-      pointsAvailable,
-      pointsEarned,
-      complete,
-    } = studentAttempt;
+      activityProgress,
+      gradingProgress,
+      comment,
+      scoreGiven,
+      scoreMaximum,
+      timestamp,
+      userId,
+      scoringUserId,
+    } = scorePayload;
     /**
      * From the official LTI 1.3 AGS specification:
      * Maximum score *MUST* be a numeric non-null value, *strictly greater* than 0.
-     * 
+     *
      * Found out that some user's were configuring their content to have 0 points available, but still be worth points
      * in the platform. If this is the case, default it to them always receiving the full amount configured in the platform.
      */
     const scoreGivenScoreMaximum = () => {
-      if (pointsAvailable === 0) {
+      if (scoreMaximum === 0) {
         return {
           scoreGiven: 1,
-          scoreMaximum: 1
+          scoreMaximum: 1,
         };
       }
       return {
-        scoreGiven: pointsEarned,
-        scoreMaximum: pointsAvailable,
+        scoreGiven,
+        scoreMaximum,
       };
     };
     const body = {
       ...scoreGivenScoreMaximum(),
-      activityProgress: complete ? 'Completed' : 'InProgress',
-      gradingProgress: 'FullyGraded',
-      timestamp: new Date().toISOString(),
-      userId: studentLti1p3UserId,
+      activityProgress,
+      gradingProgress,
+      timestamp,
+      userId,
+      ...(!!comment && { comment }),
+      ...(!!scoringUserId && { scoringUserId }),
     };
 
-    let scoreUrl = `${gradeOutcomeUrl}/scores`;
-    if (gradeOutcomeUrl.indexOf('?') !== -1) {
+    let scoreUrl = `${lineitemUrl}/scores`;
+    if (lineitemUrl.indexOf('?') !== -1) {
       const [url, query] = [
-        gradeOutcomeUrl.split('?')[0],
-        gradeOutcomeUrl.split('?')[1],
+        lineitemUrl.split('?')[0],
+        lineitemUrl.split('?')[1],
       ];
       scoreUrl = `${url}/scores?${query}`;
     }
 
     return {
-      data: JSON.stringify(body),
       scoreUrl,
+      data: JSON.stringify(body),
     };
   }
 

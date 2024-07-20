@@ -11,4 +11,5 @@ export const LTI13_ADVANTAGE_GRADING_SERVICES = Object.freeze({
   ScoresContentType: 'application/vnd.ims.lis.v1.score+json',
   LineitemContentType: 'application/vnd.ims.lis.v2.lineitem+json',
   LineitemContainerType: 'application/vnd.ims.lis.v2.lineitemcontainer+json',
+  LineItemResultContainerType: 'application/vnd.ims.lis.v2.resultcontainer+json',
 });

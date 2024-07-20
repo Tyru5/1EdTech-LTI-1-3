@@ -44,9 +44,6 @@ postScore();
 createLineitem();
 fetchAllLineitems();
 fetchLineitem();
-
-// Helper method that you can also import:
-lessThanOneHourAgo();
 ```
 
 Other CRUD operations currently in progress.
@@ -89,6 +86,7 @@ try {
     oAuth2AccessEndpoint,
     keyId,
     fs.readFileSync('path/to/private-key.pem || string', 'utf-8'),
+    debug,
   );
   
   // Option 2:
@@ -99,6 +97,7 @@ try {
     oAuth2AccessEndpoint,
     keyId,
     fs.readFileSync('path/to/private-key.pem || string', 'utf-8'),
+    debug,
   ).getAGSInstance();
 
 
@@ -148,11 +147,11 @@ try {
   ags.accessToken = 'some-access-token-you-already-generated';
   ags.accessTokenCreatedDate = 'access-tokens-creation-date';
   
-  // Lastly, you can perform CRUD operatinos on lineitem(s):
+  // Lastly, you can perform CRUD operations on lineitem(s):
 
   // Get all lineitems in context:
   const lineitems = await ags.fetchAllLineitems({
-    lineitemsUrl: 'lineitems-url-endpoint',
+    lineitemsContainerUrl: 'lineitems-container-url-endpoint',
   });
   console.log(lineitems);
   /**
@@ -180,6 +179,7 @@ try {
 
   // If you pass `params`, it will fetch the lineitems based on off the params passed:
   // You can also use the `fetchLineitem()` method to return a specific lineitem.
+  // @see: https://www.imsglobal.org/spec/lti-ags/v2p0#container-request-filters
    const params = {
     resource_link_id: 'resource-link-id',
   };
@@ -194,7 +194,6 @@ try {
   // IF you have the `resourceId` value.
   const lineitem = await ags.fetchLineitem({
     lineitemsUrl,
-    lineItemResourceId, // <-- This identifier has to conform to the value you gave the `resourceId` for the `lineitem`
   });
   console.log(lineitem);
   /**
@@ -213,22 +212,24 @@ try {
 
  // Posting scores:
  // Compile this data your own way, but has to conform to the object structure below.
- // More info could be found in the `StudentAttempt.d.ts`` interface. Reference link below.
- const studentAttempt = {
-  pointsEarned,
-  pointsAvailable,
-  complete,
-  gradeOutcomeUrl,
-  modelInfo, // <-- info about content linked. Need just the name and id of that content.
+ // More info could be found in the `ScorePayload.d.ts` type.
+ const scorePayload: ScorePayload = {
+  timestamp: string,
+  scoreGiven: number,
+  scoreMaximum: number,
+  comment?: string,
+  activityProgress: 'Initialized' | 'Started' | 'InProgress' |  'Submitted' | 'Completed',
+  gradingProgress: 'FullyGraded' | 'Pending' | 'PendingManual' | 'Failed' | 'NotReady',
+  userId: string,
+  scoringUserId?: string
 };
 const {
   status: gradePostResponseStatus, // Response status from making the AGS call.
   updatedScoresUrlEndpoint, // <-- don't have to do antying with this, but you can if you want to.
 }  = await ags.postScore({
-  resourceLinkId,
-  studentAttempt,
-  studentLti1p3UserId,
-})
+  lineitemUrl,
+  scorePayload,
+});
 
 if (
   gradePostResponseStatus === 200
